@@ -72,4 +72,6 @@ test("CHANGELOG: wstawianie na górę i wycinanie sekcji do opisu wydania", () =
   assert.equal(extractSection(b, "0.1.0"), "- a");
   assert.equal(extractSection(b, "0.3.0"), null);
   assert.equal(extractSection("## 0.10.0 (d)\n\n- x\n## 0.1.0 (d)\n- y", "0.1.0"), "- y"); // 0.1.0 ≠ 0.10.0
+  assert.equal(extractSection("## 1x2y3 (d)\n- z", "1.2.3"), null); // kropka to kropka, nie dowolny znak
+  assert.equal(extractSection("## a (d)\n- z", "(.*)"), null); // znaki specjalne nie psują wyrażenia
 });

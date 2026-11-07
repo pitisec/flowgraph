@@ -130,7 +130,8 @@ export function insertChangelog(existing, section) {
 
 /** Wycina z CHANGELOG.md treść sekcji danej wersji (bez nagłówka), np. do opisu wydania. */
 export function extractSection(changelog, version) {
-  const re = new RegExp(`^## \\[?${version.replace(/\./g, "\\.")}\\]?[ (].*$`, "m");
+  const v = String(version).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // wszystkie znaki specjalne wyrażeń regularnych
+  const re = new RegExp(`^## \\[?${v}\\]?[ (].*$`, "m");
   const m = re.exec(changelog);
   if (!m) return null;
   const rest = changelog.slice(m.index + m[0].length);
