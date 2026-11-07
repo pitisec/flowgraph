@@ -28,6 +28,10 @@ updates:
       prefix: build # build(deps): …
       include: scope
     directory: /app/src-tauri
+    ignore:
+      # notify 7+: na macOS aplikacja przestaje przeładowywać plik zmieniony na dysku (sprawdzone z 8.2.1); wymaga zmian w watch_file
+      - dependency-name: notify
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
     groups:
