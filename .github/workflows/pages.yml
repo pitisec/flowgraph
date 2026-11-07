@@ -1,0 +1,54 @@
+# Edytor w przeglądarce na GitHub Pages: po opublikowaniu wydania (szkic → „Publish release”) wystawia
+# dist/editor.html jako stronę główną i dist/examples/*.html jako przykłady, z wersji otagowanej w wydaniu.
+# Ręczne uruchomienie publikuje stan wybranej gałęzi lub tagu.
+# Wymaga raz: Pages ze źródłem „GitHub Actions” i reguła tagów w środowisku github-pages (app/BUDOWANIE.md, sekcja 4).
+name: Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Strona
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # dist/ jest w repo i CI pilnuje, żeby był aktualny, więc nic tu nie budujemy
+      - name: Pliki strony
+        run: |
+          mkdir -p _site
+          cp dist/editor.html _site/index.html
+          cp -R dist/examples _site/examples
+          ls -la _site _site/examples
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+
+  deploy:
+    name: Publikacja
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- Tło okna instalatora .dmg (660×420 pt). Przebudowa: app/dmg/make-background.sh -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>html,body{margin:0;background:#0e141b}svg{display:block}</style></head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="420" viewBox="0 0 660 420" font-family="IBM Plex Sans, -apple-system, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0" stop-color="#1a2532"/><stop offset="1" stop-color="#0c1117"/>
+    </radialGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="11" cy="11" r="1" fill="#ffffff" opacity="0.07"/>
+    </pattern>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f9fc"/><stop offset="1" stop-color="#e9eef4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="660" height="420" fill="url(#bg)"/>
+  <rect width="660" height="420" fill="url(#dots)"/>
+
+  <!-- dalekie, przygaszone węzły i połączenia (tekstura) -->
+  <g opacity="0.22" fill="none" stroke="#8aa0b8" stroke-width="1.5">
+    <path d="M70 352 C 95 352, 95 396, 118 396"/>
+    <path d="M520 46 C 560 46, 560 82, 610 82"/>
+    <path d="M555 350 C 590 350, 590 380, 632 380"/>
+  </g>
+  <g opacity="0.2" fill="#0e141b" stroke="#8aa0b8" stroke-width="1.5">
+    <rect x="22" y="340" width="48" height="24" rx="12"/>
+    <rect x="118" y="384" width="48" height="24" rx="6"/>
+    <rect x="472" y="34" width="48" height="24" rx="6"/>
+    <rect x="610" y="70" width="40" height="24" rx="12"/>
+    <rect x="507" y="338" width="48" height="24" rx="6"/>
+  </g>
+
+  <!-- przepływy: wejście z lewej, rozgałęzienie i ponowne złączenie między węzłami, wyjście w prawo -->
+  <g id="lanes" fill="none" stroke-linecap="round" stroke-width="4">
+    <!-- wejścia -->
+    <path d="M-10 70  C 40 70, 40 176, 90 176" stroke="#6db3ef"/>
+    <path d="M-10 206 L 90 206" stroke="#6fcf97"/>
+    <path d="M-10 330 C 40 330, 40 236, 90 236" stroke="#f29a4a"/>
+    <!-- środek: niebieski w górę, pomarańczowy w dół, zielony prosto; łączą się przed folderem -->
+    <path d="M250 176 C 290 176, 290 128, 330 128 S 370 176, 410 176" stroke="#6db3ef"/>
+    <path d="M250 206 L 410 206" stroke="#6fcf97"/>
+    <path d="M250 236 C 290 236, 290 284, 330 284 S 370 236, 410 236" stroke="#f29a4a"/>
+    <!-- wyjścia -->
+    <path d="M570 176 C 620 176, 620 120, 670 120" stroke="#6db3ef"/>
+    <path d="M570 206 L 670 206" stroke="#6fcf97"/>
+    <path d="M570 236 C 620 236, 620 300, 670 300" stroke="#f29a4a"/>
+  </g>
+  <use href="#lanes" filter="url(#glow)" opacity="0.55"/>
+
+  <!-- punkty na gałęziach (jak w ikonie) -->
+  <circle cx="330" cy="128" r="7" fill="#6db3ef"/>
+  <circle cx="330" cy="206" r="7" fill="#6fcf97"/>
+  <circle cx="330" cy="284" r="7" fill="#f29a4a"/>
+  <!-- strzałka do folderu -->
+  <path d="M372 196 L 384 206 L 372 216" fill="none" stroke="#e4e9ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+
+  <!-- karty-węzły pod ikonami (ikony 128 pt w punktach 170,195 i 490,195) -->
+  <g filter="url(#shadow)">
+    <rect x="86" y="96" width="168" height="208" rx="22" fill="url(#card)"/>
+    <rect x="406" y="96" width="168" height="208" rx="22" fill="url(#card)"/>
+  </g>
+  <rect x="86.5" y="96.5" width="167" height="207" rx="21.5" fill="none" stroke="#6db3ef" stroke-opacity="0.9" stroke-width="2"/>
+  <rect x="406.5" y="96.5" width="167" height="207" rx="21.5" fill="none" stroke="#6fcf97" stroke-opacity="0.9" stroke-width="2"/>
+  <!-- porty po bokach kart -->
+  <g stroke="#0e141b" stroke-width="2">
+    <circle cx="86" cy="176" r="5" fill="#6db3ef"/><circle cx="86" cy="206" r="5" fill="#6fcf97"/><circle cx="86" cy="236" r="5" fill="#f29a4a"/>
+    <circle cx="254" cy="176" r="5" fill="#6db3ef"/><circle cx="254" cy="206" r="5" fill="#6fcf97"/><circle cx="254" cy="236" r="5" fill="#f29a4a"/>
+    <circle cx="406" cy="176" r="5" fill="#6db3ef"/><circle cx="406" cy="206" r="5" fill="#6fcf97"/><circle cx="406" cy="236" r="5" fill="#f29a4a"/>
+    <circle cx="574" cy="176" r="5" fill="#6db3ef"/><circle cx="574" cy="206" r="5" fill="#6fcf97"/><circle cx="574" cy="236" r="5" fill="#f29a4a"/>
+  </g>
+
+  <!-- nagłówek -->
+  <g transform="translate(28 26)">
+    <rect width="26" height="26" rx="7" fill="#1d2a38" stroke="#2c3b4c"/>
+    <g fill="none" stroke-width="2.2" stroke-linecap="round">
+      <path d="M7 13 C 10 13, 10 8, 13 8 S 16 13, 19 13" stroke="#6db3ef"/>
+      <path d="M7 13 C 10 13, 10 18, 13 18 S 16 13, 19 13" stroke="#f29a4a"/>
+      <path d="M7 13 L 19 13" stroke="#6fcf97"/>
+    </g>
+    <text x="36" y="18" font-size="16" font-weight="600" fill="#eef2f6">FlowGraph</text>
+  </g>
+
+  <!-- podpis na dole -->
+  <text x="330" y="364" text-anchor="middle" font-size="14" font-weight="500" fill="#c9d3de">Przeciągnij FlowGraph do folderu Aplikacje</text>
+  <text x="330" y="386" text-anchor="middle" font-size="12" fill="#7d8b9b">edytor diagramów przepływu · YAML · Mermaid · C4</text>
+</svg>
+</body></html>

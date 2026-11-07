@@ -1,0 +1,6 @@
+.DS_Store
+app/dmg/background@2x.png
+app/dmg/.venv/
+node_modules/
+test-results/
+playwright-report/

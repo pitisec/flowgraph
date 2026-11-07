@@ -1,0 +1,56 @@
+title: "C4 · Poziom 3: Komponenty kontenera API"
+subtitle: >-
+  Wnętrze kontenera API (Spring Boot). Grupa API leży w grupie systemu, tak jak w C4 kontener leży w granicy systemu.
+  Elementy spoza API są pokazane tylko po to, żeby było widać, skąd przychodzą wywołania i dokąd idą.
+direction: TB
+
+groups:
+  - {id: system, label: System rezerwacji wizyt, color: blue}
+  - {id: api, label: "API [Kontener: Spring Boot]", parent: system, color: blue}
+
+nodes:
+  - {id: web, label: Aplikacja webowa, sub: "[Kontener: React SPA]", group: system, color: teal}
+  - {id: panel, label: Panel personelu, sub: "[Kontener: Angular]", group: system, color: teal}
+
+  - {id: wizyty-ctrl, label: WizytyController, sub: "[Komponent: REST] /api/wizyty", group: api}
+  - {id: grafik-ctrl, label: GrafikController, sub: "[Komponent: REST] /api/grafiki", group: api}
+  - {id: recepty-ctrl, label: ReceptyController, sub: "[Komponent: REST] /api/recepty", group: api}
+  - {id: auth, label: Filtr uwierzytelniania, sub: "[Komponent: Spring Security] JWT", group: api, shape: ghost}
+  - {id: rezerwacje, label: SerwisRezerwacji, sub: "[Komponent] Reguły rezerwacji, limity, przedpłaty", group: api, color: blue}
+  - {id: grafiki, label: SerwisGrafików, sub: "[Komponent] Wolne terminy, urlopy lekarzy", group: api, color: blue}
+  - {id: repo, label: Repozytoria, sub: "[Komponent: Spring Data JPA]", group: api}
+  - {id: zdarzenia, label: PublikatorZdarzeń, sub: "[Komponent: Spring AMQP]", group: api}
+  - {id: klient-ez, label: KlientEZdrowie, sub: "[Komponent] Adapter HL7 FHIR", group: api}
+
+  - {id: baza, label: Baza danych, sub: "[Kontener: PostgreSQL]", group: system, shape: db, color: purple}
+  - {id: kolejka, label: Kolejka zdarzeń, sub: "[Kontener: RabbitMQ]", group: system, shape: db, color: purple}
+  - {id: p1, label: Platforma e-zdrowia, sub: "[System zewnętrzny]", shape: ghost, color: gray}
+
+flows:
+  - id: rezerwacja
+    label: Rezerwacja wizyty
+    color: blue
+    width: 3
+    description: Żądanie przechodzi przez filtr JWT. Serwis rezerwacji sprawdza termin w serwisie grafików, zapisuje wizytę i publikuje zdarzenie WizytaUmówiona.
+    path:
+      - web
+      - {node: auth, label: POST /api/wizyty}
+      - wizyty-ctrl
+      - rezerwacje
+      - [[{node: grafiki, label: czy termin wolny}, repo, baza], [zdarzenia, {node: kolejka, label: WizytaUmówiona}]]
+
+  - id: grafik
+    label: Edycja grafiku
+    color: orange
+    description: Personel zmienia grafik. Zmiana idzie przez ten sam serwis grafików, z którego korzysta rezerwacja.
+    path: [panel, {node: auth, label: PUT /api/grafiki}, grafik-ctrl, grafiki, repo, baza]
+
+  - id: recepta
+    label: E-recepta
+    color: green
+    description: Kontroler recept zapisuje receptę i przez adapter wysyła ją do platformy e-zdrowia.
+    path:
+      - panel
+      - {node: auth, label: POST /api/recepty}
+      - recepty-ctrl
+      - [[repo, baza], [klient-ez, {node: p1, label: "HL7 FHIR"}]]

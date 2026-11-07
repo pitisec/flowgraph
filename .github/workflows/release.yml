@@ -1,0 +1,232 @@
+# Wydanie: tag w formacie X.Y.Z (np. 0.2.0) → testy → uniwersalny .dmg (Apple Silicon + Intel) → szkic wydania na GitHubie.
+# Ręczne uruchomienie (workflow_dispatch) buduje i udostępnia .dmg jako artefakt, bez tworzenia wydania.
+#
+# Podpis i notaryzacja są opcjonalne: włączają się, gdy w ustawieniach repo są sekrety
+#   APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+#   APPLE_ID, APPLE_PASSWORD (hasło dla aplikacji), APPLE_TEAM_ID.
+# Bez nich powstaje niepodpisany .dmg, a opis wydania mówi, jak go otworzyć. Szczegóły: app/BUDOWANIE.md.
+name: Release
+
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Testy
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Budowanie .dmg
+    needs: test
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write # poświadczenie pochodzenia artefaktu
+      attestations: write
+    outputs:
+      signed: ${{ steps.signing.outputs.enabled }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Wersja zgodna z tagiem
+        id: version
+        run: |
+          # app/package.json to źródło wersji; tauri.conf.json tylko na nie wskazuje (npm run release pilnuje reszty)
+          v_npm=$(jq -r .version app/package.json)
+          v_conf=$(jq -r .version app/src-tauri/tauri.conf.json)
+          v_cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' app/src-tauri/Cargo.toml | head -1)
+          echo "package.json=$v_npm Cargo.toml=$v_cargo tauri.conf.json=$v_conf"
+          if [ "$v_conf" != "../package.json" ]; then
+            echo "::error::W tauri.conf.json \"version\" powinno być \"../package.json\"."; exit 1
+          fi
+          if [ "$v_npm" != "$v_cargo" ]; then
+            echo "::error::Wersje w app/package.json i Cargo.toml się różnią. Wersję podnosi npm run release."; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$v_npm" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME nie zgadza się z wersją aplikacji $v_npm."; exit 1
+          fi
+          echo "version=$v_npm" >> "$GITHUB_OUTPUT"
+
+      - name: Czy podpisywać
+        id: signing
+        env:
+          HAS_CERT: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_ID != '' }}
+        run: |
+          echo "enabled=$HAS_CERT" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_CERT" != "true" ]; then echo "::warning::Brak sekretów Apple: .dmg będzie niepodpisany."; fi
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          cache-dependency-glob: flowgraph.py # zależności są w nagłówku skryptu (PEP 723)
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Rust dla obu architektur
+        working-directory: app/src-tauri
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: app/src-tauri
+
+      - name: Zależności
+        working-directory: app
+        run: npm ci
+
+      - name: Budowanie (podpisane i notaryzowane)
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: app
+        env:
+          # na CI Tauri domyślnie pomija AppleScript, który układa okno instalatora (tło, ikony)
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run build -- --target universal-apple-darwin
+
+      - name: Budowanie (bez podpisu)
+        if: steps.signing.outputs.enabled != 'true'
+        working-directory: app
+        env:
+          # na CI Tauri domyślnie pomija AppleScript, który układa okno instalatora (tło, ikony)
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+        run: npm run build -- --target universal-apple-darwin
+
+      - name: Zbieranie plików
+        id: files
+        run: |
+          mkdir -p dist-release
+          cp app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg dist-release/
+          ls -la dist-release
+          dmgs=(dist-release/*.dmg)
+          echo "dmg=${dmgs[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Podpis i notaryzacja .dmg
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          DMG: ${{ steps.files.outputs.dmg }}
+        run: |
+          codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG"
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$DMG"
+
+      - name: Sprawdzenie
+        env:
+          DMG: ${{ steps.files.outputs.dmg }}
+          SIGNED: ${{ steps.signing.outputs.enabled }}
+        run: |
+          hdiutil verify "$DMG"
+          APP=app/src-tauri/target/universal-apple-darwin/release/bundle/macos/FlowGraph.app
+          archs=$(lipo -archs "$APP/Contents/MacOS/flowgraph"); echo "architektury: $archs"
+          [[ " $archs " == *" x86_64 "* && " $archs " == *" arm64 "* ]] || { echo "::error::Brak wersji uniwersalnej"; exit 1; }
+          if [ "$SIGNED" = "true" ]; then
+            codesign --verify --deep --strict --verbose=2 "$APP"
+            spctl -a -vv "$APP"
+            xcrun stapler validate "$DMG"
+          fi
+
+      - name: Sumy kontrolne
+        working-directory: dist-release
+        run: shasum -a 256 -- *.dmg | tee SHA256SUMS.txt
+
+      - name: Poświadczenie pochodzenia
+        # poświadczenie działa tylko w publicznych repo (na planie Free); w prywatnym, np. testowym, krok jest pomijany
+        if: github.event.repository.visibility == 'public'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist-release/*.dmg
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flowgraph-${{ steps.version.outputs.version }}-macos
+          path: dist-release/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Wydanie na GitHubie
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            CHANGELOG.md
+            scripts/lib
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: flowgraph-${{ needs.build.outputs.version }}-macos
+          path: dist-release
+
+      # Szkic: wydanie trzeba opublikować ręcznie po przejrzeniu opisu i plików.
+      - name: Szkic wydania
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+          PUBLIC: ${{ github.event.repository.visibility == 'public' }}
+        run: |
+          # lista zmian z CHANGELOG.md (uzupełnia go npm run release)
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import { extractSection } from "./scripts/lib/conventional.mjs";
+            const s = fs.existsSync("CHANGELOG.md") && extractSection(fs.readFileSync("CHANGELOG.md", "utf8"), process.env.TAG);
+            if (s) fs.writeFileSync("changes.md", "## Zmiany\n\n" + s.replace(/^### /gm, "#### ") + "\n\n");
+            else console.log("::warning::Brak sekcji " + process.env.TAG + " w CHANGELOG.md");
+          '
+          {
+            [ -f changes.md ] && cat changes.md
+            echo "## Instalacja"
+            echo
+            echo "Pobierz \`FlowGraph_${TAG}_universal.dmg\`, otwórz i przeciągnij FlowGraph do folderu Aplikacje. Działa na Macach z Apple Silicon i Intel."
+            if [ "$SIGNED" != "true" ]; then
+              echo
+              echo "> [!NOTE]"
+              echo "> Ta wersja nie jest podpisana certyfikatem Apple. Przy pierwszym uruchomieniu macOS ją zablokuje: otwórz Ustawienia systemowe → Prywatność i ochrona → **Otwórz mimo to** (w macOS 14 i starszych: prawy klik na aplikacji → **Otwórz**)."
+              echo "> Jeśli macOS zgłasza, że aplikacja jest uszkodzona: \`xattr -dr com.apple.quarantine /Applications/FlowGraph.app\`."
+            fi
+            echo
+            if [ "$PUBLIC" = "true" ]; then
+              echo "Sumy SHA-256 są w \`SHA256SUMS.txt\`. Pochodzenie pliku potwierdzisz przez \`gh attestation verify <plik.dmg> --repo ${GITHUB_REPOSITORY}\`."
+            else
+              echo "Sumy SHA-256 są w \`SHA256SUMS.txt\`."
+            fi
+          } > notes.md
+          gh release create "$TAG" dist-release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --verify-tag \
+            --title "FlowGraph $TAG" \
+            --notes-file notes.md

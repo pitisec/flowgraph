@@ -1,0 +1,74 @@
+title: Obsługa zgłoszeń w helpdesku
+subtitle: >-
+  Zgłoszenia z czterech kanałów trafiają do jednej kolejki. Pierwsza linia rozwiązuje
+  większość spraw, trudniejsze idą wyżej, a awarie od razu do zespołu dyżurnego.
+direction: TB
+
+colors:
+  pilne: {light: "#c92a2a", dark: "#ff6b6b"}
+  sla: {light: "#5f3dc4", dark: "#b197fc"}
+
+groups:
+  - {id: kanaly, label: Kanały, color: gray}
+  - {id: wsparcie, label: Wsparcie, color: blue}
+  - {id: inzynieria, label: Inżynieria, color: orange}
+
+nodes:
+  - {id: email, label: E-mail, group: kanaly}
+  - {id: czat, label: Czat, group: kanaly}
+  - {id: telefon, label: Telefon, group: kanaly}
+  - {id: monitoring, label: Monitoring, sub: alerty automatyczne, group: kanaly, shape: ghost}
+  - {id: kolejka, label: Kolejka zgłoszeń, sub: system ticketowy, shape: db}
+  - {id: triage, label: Triage, sub: priorytet i kategoria, group: wsparcie}
+  - {id: l1, label: Pierwsza linia, group: wsparcie, meta: {SLA: 4 h}}
+  - {id: baza, label: Baza wiedzy, group: wsparcie, shape: db}
+  - {id: l2, label: Druga linia, group: inzynieria, meta: {SLA: 1 dzień}}
+  - {id: dyzur, label: Zespół dyżurny, group: inzynieria, items: [24/7, telefon dyżurny]}
+  - {id: poprawka, label: Poprawka w kodzie, group: inzynieria}
+  - {id: rozwiazane, label: Rozwiązane, shape: pill}
+  - {id: ankieta, label: Ankieta satysfakcji, shape: ghost}
+
+flows:
+  - id: standard
+    label: Zwykłe zgłoszenie
+    color: blue
+    width: 3
+    description: Większość spraw kończy się na pierwszej linii, która korzysta z bazy wiedzy.
+    path:
+      - [email, czat, telefon]
+      - kolejka
+      - triage
+      - l1
+      - {node: baza, label: szukanie rozwiązania}
+      - rozwiazane
+
+  - id: eskalacja
+    label: Eskalacja
+    color: sla
+    width: 2.5
+    arrow: open
+    description: Gdy pierwsza linia nie zna rozwiązania albo zbliża się koniec SLA, zgłoszenie przechodzi do drugiej linii.
+    path: [l1, {node: l2, label: brak rozwiązania}, poprawka, rozwiazane]
+
+  - id: awaria
+    label: Awaria
+    color: pilne
+    width: 3
+    style: dashed
+    description: Alert z monitoringu albo zgłoszenie o priorytecie krytycznym omija kolejkę i budzi zespół dyżurny.
+    path: [[monitoring, triage], {node: dyzur, label: P1}, poprawka, rozwiazane]
+
+  - id: opinia
+    label: Opinia klienta
+    color: teal
+    style: dotted
+    width: 2
+    arrow: circle
+    path: [rozwiazane, ankieta]
+
+edges:
+  - {from: l2, to: baza, label: nowy artykuł, style: dotted, arrow: diamond}
+
+notes:
+  - title: Priorytety
+    items: ["P1 – awaria: reakcja 15 min", "P2 – poważny błąd: reakcja 4 h", "P3 – pytanie: reakcja 1 dzień"]

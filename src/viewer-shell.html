@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<script>try{var t=localStorage.getItem("flowgraph-theme")||"dark";if(t!=="auto")document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+__CSS__
+</style>
+</head>
+<body class="fg-body">
+<div id="app"></div>
+<script>
+__DAGRE__
+</script>
+<script>
+__FLOWGRAPH__
+</script>
+<script>
+FlowGraph.mountPage(document.getElementById("app"), __SPEC__);
+</script>
+</body>
+</html>

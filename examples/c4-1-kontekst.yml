@@ -1,0 +1,56 @@
+title: "C4 · Poziom 1: Kontekst systemu"
+subtitle: >-
+  System rezerwacji wizyt w sieci przychodni. Kto z niego korzysta i z jakimi systemami zewnętrznymi rozmawia.
+  Przepływy pokazują najważniejsze scenariusze, cienkie szare linie to pozostałe zależności.
+direction: LR
+
+groups:
+  - {id: ludzie, label: Użytkownicy, color: blue}
+  - {id: zewnetrzne, label: Systemy zewnętrzne, color: gray}
+
+nodes:
+  - {id: pacjent, label: Pacjent, sub: "[Osoba] Umawia, przesuwa i odwołuje wizyty", group: ludzie, shape: pill, color: blue}
+  - {id: rejestracja, label: Personel rejestracji, sub: "[Osoba] Prowadzi grafiki i obsługuje telefony", group: ludzie, shape: pill, color: blue}
+  - {id: lekarz, label: Lekarz, sub: "[Osoba] Przegląda swoje wizyty, wystawia e-recepty", group: ludzie, shape: pill, color: blue}
+  - {id: system, label: System rezerwacji wizyt, sub: "[System] Grafiki lekarzy, rezerwacje online, przypomnienia", color: blue}
+  - {id: email, label: Usługa e-mail, sub: "[System zewnętrzny] dostawca wysyłki", group: zewnetrzne, shape: ghost, color: gray}
+  - {id: sms, label: Bramka SMS, sub: "[System zewnętrzny] operator SMS", group: zewnetrzne, shape: ghost, color: gray}
+  - {id: p1, label: Platforma e-zdrowia, sub: "[System zewnętrzny] e-recepta, e-skierowanie", group: zewnetrzne, shape: ghost, color: gray}
+  - {id: platnosci, label: Operator płatności, sub: "[System zewnętrzny] przedpłaty za wizyty prywatne", group: zewnetrzne, shape: ghost, color: gray}
+
+flows:
+  - id: rezerwacja
+    label: Rezerwacja online
+    color: blue
+    width: 3
+    description: Pacjent wybiera termin, opcjonalnie płaci z góry i dostaje potwierdzenie e-mailem oraz SMS-em.
+    path:
+      - pacjent
+      - {node: system, label: rezerwuje wizytę}
+      - [{node: platnosci, label: przedpłata}, {node: email, label: potwierdzenie}, {node: sms, label: przypomnienie}]
+
+  - id: grafiki
+    label: Obsługa grafików
+    color: orange
+    description: Rejestracja układa grafiki i umawia pacjentów dzwoniących do przychodni.
+    path: [rejestracja, {node: system, label: zarządza grafikami}]
+
+  - id: recepta
+    label: E-recepta
+    color: green
+    description: Po wizycie lekarz wystawia e-receptę, a system przekazuje ją do krajowej platformy e-zdrowia.
+    path: [lekarz, {node: system, label: zamyka wizytę}, {node: p1, label: "HL7 FHIR"}]
+
+edges:
+  - {from: sms, to: pacjent, label: SMS, style: dotted}
+  - {from: email, to: pacjent, label: e-mail, style: dotted}
+
+notes:
+  - title: Notacja C4 w tym grafie
+    items:
+      - "Osoba: kształt pigułki, kolor niebieski"
+      - "System, który budujemy: zwykły prostokąt"
+      - "System zewnętrzny: przerywana ramka, kolor szary"
+      - "Opis w nawiasie kwadratowym to typ elementu, jak w C4"
+  - title: Kolejne poziomy
+    text: c4-2-kontenery rozbija System rezerwacji wizyt na aplikacje i bazy danych, a c4-3-komponenty pokazuje wnętrze kontenera API.

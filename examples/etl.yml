@@ -1,0 +1,50 @@
+title: Potok danych sprzedażowych
+subtitle: Dane z trzech źródeł przechodzą przez wspólną kolejkę, rozdzielają się na równoległe przetwarzanie i łączą w hurtowni. Błędne rekordy wracają do kolejki po poprawce.
+direction: TB
+
+groups:
+  - {id: zrodla, label: Źródła, color: gray}
+  - {id: przetwarzanie, label: Przetwarzanie, color: purple}
+  - {id: odbiorcy, label: Odbiorcy, color: green}
+
+nodes:
+  - {id: crm, label: CRM, sub: SaaS, group: zrodla, shape: db}
+  - {id: sklep, label: Sklep, sub: PostgreSQL, group: zrodla, shape: db}
+  - {id: www, label: Zdarzenia web, sub: tracker JS, group: zrodla}
+  - {id: kafka, label: Kafka, sub: topic raw.*, meta: {retencja: 7 dni}}
+  - {id: walidacja, label: Walidacja schematu, group: przetwarzanie}
+  - {id: dedup, label: Deduplikacja, group: przetwarzanie}
+  - {id: geo, label: Wzbogacenie geo, group: przetwarzanie}
+  - {id: sesje, label: Sklejanie sesji, group: przetwarzanie}
+  - {id: kwarantanna, label: Kwarantanna, sub: ręczna poprawka, shape: ghost}
+  - {id: dwh, label: Hurtownia, sub: baza kolumnowa, shape: db}
+  - {id: bi, label: Dashboardy, group: odbiorcy}
+  - {id: ml, label: Model rekomendacji, group: odbiorcy}
+  - {id: ksiegowosc, label: Eksport do księgowości, group: odbiorcy, items: [CSV, codziennie 02:00]}
+
+flows:
+  - id: zamowienia
+    label: Zamówienia
+    color: blue
+    width: 3
+    path: [sklep, kafka, walidacja, [dedup, geo], dwh, [bi, ksiegowosc]]
+
+  - id: klienci
+    label: Klienci
+    color: orange
+    width: 3
+    path: [crm, kafka, walidacja, dedup, dwh, [bi, ml]]
+
+  - id: zdarzenia
+    label: Zdarzenia web
+    color: green
+    width: 2
+    path: [www, kafka, [sesje, geo], dwh, ml]
+
+  - id: bledy
+    label: Błędne rekordy
+    color: red
+    style: dashed
+    width: 2
+    description: Rekordy, które nie przeszły walidacji, trafiają do kwarantanny i po poprawce wracają do Kafki. To pętla w grafie.
+    path: [walidacja, {node: kwarantanna, label: schemat niezgodny}, {node: kafka, label: po poprawce}]

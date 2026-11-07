@@ -1,0 +1,5 @@
+# Do obrazu trafia tylko to, czego używa Dockerfile.
+*
+!dist/editor.html
+!dist/examples/
+!docker/nginx.conf

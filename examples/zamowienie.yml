@@ -1,0 +1,84 @@
+title: Obsługa zamówienia w sklepie
+subtitle: >-
+  Od koszyka do dostawy. Płatność rozgałęzia się na trzy metody i łączy w potwierdzeniu.
+  Kompletacja i faktura biegną równolegle i spotykają się przy wysyłce.
+direction: LR
+
+groups:
+  - {id: sklep, label: Sklep, color: blue}
+  - {id: platnosci, label: Płatności, color: purple}
+  - {id: realizacja, label: Realizacja, color: orange}
+  - {id: dostawa, label: Dostawa, color: green}
+  - {id: zwroty, label: Zwroty, color: red}
+
+nodes:
+  - {id: koszyk, label: Koszyk, group: sklep, shape: pill}
+  - {id: checkout, label: Checkout, sub: adres i metoda płatności, group: sklep}
+  - {id: karta, label: Karta, group: platnosci, meta: {operator: zewnętrzny}}
+  - {id: blik, label: BLIK, group: platnosci}
+  - {id: przelew, label: Przelew tradycyjny, group: platnosci}
+  - {id: ksiegowanie, label: Księgowanie wpłaty, sub: do 2 dni roboczych, group: platnosci}
+  - {id: antyfraud, label: Weryfikacja antyfraud, group: platnosci, shape: ghost}
+  - {id: potwierdzenie, label: Płatność potwierdzona, group: platnosci}
+  - {id: kompletacja, label: Kompletacja, group: realizacja}
+  - {id: pakowanie, label: Pakowanie, group: realizacja}
+  - {id: faktura, label: Faktura, sub: e-faktura, group: realizacja}
+  - {id: wysylka, label: Nadanie przesyłki, group: dostawa}
+  - {id: kurier, label: Kurier, group: dostawa}
+  - {id: paczkomat, label: Paczkomat, group: dostawa}
+  - {id: dostarczono, label: Dostarczono, group: dostawa, shape: pill}
+  - {id: zwrot, label: Zgłoszenie zwrotu, group: zwroty}
+  - {id: przyjecie, label: Przyjęcie zwrotu, group: zwroty}
+  - {id: korekta, label: Faktura korygująca, group: zwroty}
+  - {id: zwrot-srodkow, label: Zwrot środków, group: zwroty}
+  - {id: powiadomienia, label: Powiadomienia, shape: ghost}
+  - {id: email, label: E-mail}
+  - {id: sms, label: SMS}
+
+flows:
+  - id: zamowienie
+    label: Zamówienie
+    color: blue
+    width: 3
+    description: Główna ścieżka. Trzy metody płatności łączą się w potwierdzeniu, a magazyn i faktura w wysyłce.
+    path:
+      - koszyk
+      - checkout
+      - [karta, blik, [przelew, ksiegowanie]]
+      - potwierdzenie
+      - [[kompletacja, pakowanie], faktura]
+      - wysylka
+      - [kurier, paczkomat]
+      - dostarczono
+
+  - id: antyfraud
+    label: Kontrola antyfraud
+    color: red
+    style: dashed
+    description: Tylko płatności kartą powyżej 2000 zł. Wraca do głównej ścieżki w potwierdzeniu.
+    path: [karta, {node: antyfraud, label: "> 2000 zł"}, potwierdzenie]
+
+  - id: zwrot
+    label: Zwrot towaru
+    color: orange
+    description: Klient odsyła towar. Korekta faktury i przyjęcie na magazyn muszą się zakończyć przed zwrotem pieniędzy.
+    path:
+      - dostarczono
+      - {node: zwrot, label: 14 dni}
+      - [przyjecie, korekta]
+      - zwrot-srodkow
+
+  - id: powiadomienia
+    label: Powiadomienia
+    color: teal
+    style: dotted
+    width: 2
+    description: Trzy zdarzenia zbiegają się w jednej usłudze powiadomień, która wysyła e-mail i SMS.
+    path:
+      - [potwierdzenie, wysylka, dostarczono]
+      - powiadomienia
+      - [email, sms]
+
+notes:
+  - title: Jak czytać graf
+    text: Kliknij przepływ w legendzie albo linię na grafie, żeby go wyróżnić. Kliknięcie węzła pokazuje wszystkie przepływy, które przez niego przechodzą.

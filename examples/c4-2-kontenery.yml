@@ -1,0 +1,62 @@
+title: "C4 · Poziom 2: Kontenery"
+subtitle: >-
+  Z czego składa się System rezerwacji wizyt: aplikacje, API, worker i magazyny danych.
+  Etykiety na strzałkach to protokoły, jak w relacjach C4.
+direction: TB
+
+groups:
+  - {id: ludzie, label: Użytkownicy, color: blue}
+  - {id: system, label: System rezerwacji wizyt, color: blue}
+  - {id: zewnetrzne, label: Systemy zewnętrzne, color: gray}
+
+nodes:
+  - {id: pacjent, label: Pacjent, sub: "[Osoba]", group: ludzie, shape: pill, color: blue}
+  - {id: rejestracja, label: Personel rejestracji, sub: "[Osoba]", group: ludzie, shape: pill, color: blue}
+  - {id: lekarz, label: Lekarz, sub: "[Osoba]", group: ludzie, shape: pill, color: blue}
+
+  - {id: web, label: Aplikacja webowa, sub: "[Kontener: React SPA] Rezerwacje dla pacjentów", group: system, color: teal}
+  - {id: mobile, label: Aplikacja mobilna, sub: "[Kontener: React Native] To samo co web, plus powiadomienia push", group: system, color: teal}
+  - {id: panel, label: Panel personelu, sub: "[Kontener: Angular] Grafiki, wizyty, e-recepty", group: system, color: teal}
+  - {id: api, label: API, sub: "[Kontener: Java, Spring Boot] Logika rezerwacji i grafików", group: system, color: blue, meta: {port: "443"}}
+  - {id: worker, label: Worker powiadomień, sub: "[Kontener: Node.js] Wysyła e-maile i SMS-y", group: system, color: blue}
+  - {id: baza, label: Baza danych, sub: "[Kontener: PostgreSQL 16] Pacjenci, grafiki, wizyty", group: system, shape: db, color: purple}
+  - {id: kolejka, label: Kolejka zdarzeń, sub: "[Kontener: RabbitMQ]", group: system, shape: db, color: purple}
+
+  - {id: email, label: Usługa e-mail, sub: "[System zewnętrzny]", group: zewnetrzne, shape: ghost, color: gray}
+  - {id: sms, label: Bramka SMS, sub: "[System zewnętrzny]", group: zewnetrzne, shape: ghost, color: gray}
+  - {id: p1, label: Platforma e-zdrowia, sub: "[System zewnętrzny]", group: zewnetrzne, shape: ghost, color: gray}
+
+flows:
+  - id: rezerwacja
+    label: Rezerwacja online
+    color: blue
+    width: 3
+    description: Pacjent rezerwuje z przeglądarki albo telefonu. API zapisuje wizytę i publikuje zdarzenie, z którego worker robi powiadomienia.
+    path:
+      - pacjent
+      - [web, mobile]
+      - {node: api, label: "JSON / HTTPS"}
+      - [{node: baza, label: SQL}, [{node: kolejka, label: AMQP}, worker, [{node: email, label: HTTPS}, {node: sms, label: HTTPS}]]]
+
+  - id: personel
+    label: Praca personelu
+    color: orange
+    description: Rejestracja i lekarze pracują w jednym panelu, który korzysta z tego samego API.
+    path:
+      - [rejestracja, lekarz]
+      - panel
+      - {node: api, label: "JSON / HTTPS"}
+      - {node: baza, label: SQL}
+
+  - id: recepta
+    label: E-recepta
+    color: green
+    description: Lekarz zamyka wizytę w panelu, API wysyła e-receptę do platformy e-zdrowia.
+    path: [lekarz, panel, api, {node: p1, label: "HL7 FHIR"}]
+
+notes:
+  - title: Kolory kontenerów
+    items:
+      - "Turkus: aplikacje, z którymi pracuje człowiek"
+      - "Niebieski: usługi bez interfejsu"
+      - "Fiolet, kształt bazy: magazyny danych"

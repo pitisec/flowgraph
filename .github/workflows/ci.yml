@@ -1,0 +1,144 @@
+# Testy przy każdym pushu i pull requeście. Wywoływany też przez release.yml przed budowaniem wydania.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  commits:
+    name: Opisy commitów
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Conventional Commits
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        run: node scripts/commit-check.mjs --range "$RANGE"
+
+  web:
+    name: Silnik, edytor, CLI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          cache-dependency-glob: flowgraph.py # zależności są w nagłówku skryptu (PEP 723)
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Wygenerowane pliki są aktualne
+        run: |
+          npm run build
+          # status, nie diff: łapie też nowe, niezacommitowane pliki (np. strona nowego przykładu)
+          if [ -n "$(git status --porcelain -- dist/)" ]; then
+            git status --short -- dist/
+            echo "::error::dist/ (editor.html, examples/*.html) jest nieaktualny. Uruchom 'npm run build' i zacommituj wynik."
+            exit 1
+          fi
+
+      - name: Testy jednostkowe
+        run: npm run test:unit
+
+      - name: Przeglądarka do testów
+        run: npx playwright install --with-deps chromium
+
+      - name: Testy end-to-end
+        run: npm run test:e2e
+
+      - name: Raport Playwright
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  app:
+    name: Aplikacja (Rust)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          cache-dependency-glob: flowgraph.py # zależności są w nagłówku skryptu (PEP 723)
+
+      # tauri::generate_context! wkleja dist/ do binarki, więc musi istnieć przed kompilacją
+      - name: Edytor dla aplikacji (app/dist)
+        working-directory: app
+        run: npm run web
+
+      - name: Toolchain z rust-toolchain.toml
+        working-directory: app/src-tauri
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: app/src-tauri
+
+      - name: Formatowanie
+        working-directory: app/src-tauri
+        run: cargo fmt --check
+
+      - name: Clippy
+        working-directory: app/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+  docker:
+    name: Obraz Dockera
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Budowanie
+        run: docker build -t flowgraph:ci .
+
+      # tak jak w deploy/kubernetes.yaml: system plików tylko do odczytu, /tmp w pamięci
+      - name: Uruchomienie i sprawdzenie
+        run: |
+          docker run -d --name fg --read-only --tmpfs /tmp -p 8080:8080 flowgraph:ci
+          for _ in $(seq 1 20); do curl -sf localhost:8080/healthz >/dev/null && break; sleep 0.5; done
+          for u in / /healthz /examples/zamowienie.html; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:8080$u"); echo "$u $code"
+            [ "$code" = 200 ] || { docker logs fg; exit 1; }
+          done
+          curl -s localhost:8080/ | grep -q 'FlowGraph' || { echo "::error::Strona główna to nie edytor"; exit 1; }

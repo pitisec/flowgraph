@@ -1,0 +1,81 @@
+# FlowGraph w Kubernetes: statyczny edytor (nginx bez roota), 2 repliki, Service na porcie 80.
+#   kubectl apply -f deploy/kubernetes.yaml
+#   kubectl port-forward svc/flowgraph 8080:80     → http://localhost:8080
+# Obraz: ghcr.io/pitisec/flowgraph (tag = wersja wydania). Ingress na końcu pliku jest zakomentowany.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flowgraph
+  labels: &labels
+    app.kubernetes.io/name: flowgraph
+spec:
+  replicas: 2
+  selector:
+    matchLabels: *labels
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: flowgraph
+          image: ghcr.io/pitisec/flowgraph:0.10.4
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp # nginx trzyma tu pid i pliki tymczasowe
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowgraph
+  labels:
+    app.kubernetes.io/name: flowgraph
+spec:
+  selector:
+    app.kubernetes.io/name: flowgraph
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: flowgraph
+# spec:
+#   rules:
+#     - host: flowgraph.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service: {name: flowgraph, port: {name: http}}

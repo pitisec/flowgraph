@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opis commita w formacie Conventional Commits. Włącza go `npm install` (skrypt prepare: core.hooksPath=.githooks).
+# Pominięcie w wyjątkowej sytuacji: git commit --no-verify
+exec node "$(git rev-parse --show-toplevel)/scripts/commit-check.mjs" --file "$1"

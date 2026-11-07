@@ -1,0 +1,73 @@
+title: Potok CI/CD aplikacji webowej
+subtitle: >-
+  Od commita do produkcji. Testy biegną równolegle i muszą się spotkać przed budową obrazu.
+  Wdrożenie idzie przez staging, a nieudany test dymny cofa wersję.
+direction: TB
+
+colors:
+  git: {light: "#e8590c", dark: "#ff8a4c"}
+  kontener: {light: "#1c7ed6", dark: "#5fb3ff"}
+
+groups:
+  - {id: ci, label: Ciągła integracja, color: kontener}
+  - {id: testy, label: Testy, color: purple, parent: ci}
+  - {id: cd, label: Wdrożenie, color: green}
+
+nodes:
+  - {id: commit, label: Commit, sub: gałąź main, shape: pill, color: git}
+  - {id: pr, label: Pull request, sub: przegląd kodu}
+  - {id: build, label: Budowanie, sub: npm ci && npm run build, group: ci}
+  - {id: unit, label: Testy jednostkowe, group: testy}
+  - {id: e2e, label: Testy E2E, sub: Playwright, group: testy}
+  - {id: lint, label: Lint i typy, group: testy}
+  - {id: obraz, label: Obraz kontenera, group: ci, meta: {rejestr: ghcr.io}}
+  - {id: staging, label: Staging, group: cd, shape: db}
+  - {id: dymny, label: Test dymny, group: cd}
+  - {id: prod, label: Produkcja, group: cd, shape: pill, items: [3 repliki, rolling update]}
+  - {id: poprzednia, label: Poprzednia wersja, group: cd, shape: ghost}
+  - {id: slack, label: Kanał zespołu, shape: ghost}
+
+flows:
+  - id: wydanie
+    label: Wydanie
+    color: kontener
+    width: 3
+    description: Każdy commit na main przechodzi pełną ścieżkę. Obraz powstaje dopiero wtedy, gdy wszystkie trzy rodzaje testów są zielone.
+    path:
+      - commit
+      - {node: pr, label: review}
+      - build
+      - [unit, e2e, lint]
+      - obraz
+      - {node: staging, label: auto}
+      - dymny
+      - {node: prod, label: ręczna akceptacja}
+
+  - id: rollback
+    label: Wycofanie
+    color: red
+    style: dashed
+    width: 2
+    arrow: open
+    description: Gdy test dymny na produkcji nie przejdzie, ruch wraca na poprzednią wersję obrazu.
+    path: [prod, {node: poprzednia, label: test dymny czerwony}]
+
+  - id: blad-testow
+    label: Czerwone testy
+    color: git
+    style: dashed
+    arrow: cross
+    description: Nieudany test zatrzymuje potok przed budową obrazu i wraca do autora jako komentarz w pull requeście.
+    path: [[unit, e2e, lint], pr]
+
+  - id: powiadomienia
+    label: Powiadomienia
+    color: teal
+    style: dotted
+    width: 2
+    arrow: circle
+    path: [[obraz, prod, poprzednia], slack]
+
+notes:
+  - title: Kolory dokumentu
+    text: Kolory „git” i „kontener” są zdefiniowane w sekcji colors, osobno dla jasnego i ciemnego motywu.

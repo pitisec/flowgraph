@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "splash",
+  "description": "Ekran startowy: odczyt wersji i zamknięcie własnego okna po animacji",
+  "windows": ["splash"],
+  "permissions": ["core:app:allow-version", "core:window:allow-close"]
+}

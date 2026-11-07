@@ -1,0 +1,2639 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<script>try{var t=localStorage.getItem("flowgraph-theme")||"dark";if(t!=="auto")document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edytor FlowGraph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style id="fg-css">
+__CSS__
+</style>
+<style>
+/* Editor shell: three panes (structure | live preview | inspector) over a toolbar, status line at the bottom */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--fg-bg); color: var(--fg-text); font-family: var(--fg-sans); font-size: 13.5px; }
+.ed-app { --left: 280px; --right: 370px; --leftW: 280px; --rightW: 370px; height: 100%; display: grid; grid-template-columns: var(--left) minmax(0, 1fr) var(--right); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+/* Animacja paneli: kolumna siatki zmienia szerokość, a panel ma stałą szerokość i chowa się za krawędzią okna
+   (lewy wyrównany do prawej krawędzi kolumny, prawy do lewej), więc treść się nie przelewa. */
+.ed-app.ed-anim { transition: grid-template-columns .24s cubic-bezier(.3, .7, .2, 1); }
+body.ed-resizing .ed-app { transition: none; }
+.ed-side { width: var(--leftW); justify-self: end; box-sizing: border-box; }
+.ed-insp { width: var(--rightW); justify-self: start; box-sizing: border-box; }
+.ed-yaml.ed-anim-y { transition: height .22s cubic-bezier(.3, .7, .2, 1), padding .22s; overflow: hidden; }
+.ed-yaml.ed-closed { height: 0 !important; padding-top: 0; padding-bottom: 0; border-top-width: 0; }
+@media (prefers-reduced-motion: reduce) { .ed-app.ed-anim, .ed-yaml.ed-anim-y { transition: none; } }
+.ed-side { grid-column: 1; grid-row: 2; }
+.ed-main { grid-column: 2; grid-row: 2; }
+.ed-insp { grid-column: 3; grid-row: 2; }
+/* karty otwartych plików */
+.ed-tabs { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; align-self: stretch; margin: -8px 0; padding: 6px 0; }
+.ed-tabs::-webkit-scrollbar { display: none; }
+.ed-tab { flex: 0 1 auto; display: flex; align-items: center; gap: 4px; min-width: 90px; max-width: 220px; padding: 3px 4px 3px 11px; font-size: 13px; color: var(--fg-muted);
+  border: 1px solid transparent; border-radius: 7px; cursor: pointer; user-select: none; position: relative; }
+.ed-tab:hover { color: var(--fg-text); background: color-mix(in srgb, var(--fg-panel) 55%, transparent); }
+.ed-tab[aria-selected="true"] { color: var(--fg-text); background: var(--fg-bg); border-color: var(--fg-line); font-weight: 600; }
+.ed-tab[aria-selected="true"]::before { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--fg-sel); }
+.ed-tab:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: -2px; }
+.ed-tab .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-tab .x { flex: none; width: 20px; height: 20px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; font-size: 11px; cursor: pointer; opacity: .55; }
+.ed-tab .x:hover { opacity: 1; background: var(--fg-line); }
+.ed-tab .x .dot { display: none; color: var(--c-orange); font-size: 10px; }
+.ed-tab.dirty .x { opacity: 1; }
+.ed-tab.dirty .x .dot { display: inline; }
+.ed-tab.dirty .x .cl { display: none; }
+.ed-tab.dirty:hover .x .dot, .ed-tab.dirty .x:focus-visible .dot { display: none; }
+.ed-tab.dirty:hover .x .cl, .ed-tab.dirty .x:focus-visible .cl { display: inline; }
+.ed-tab.drop-before { box-shadow: inset 2px 0 0 var(--fg-sel); }
+.ed-tab.drop-after { box-shadow: inset -2px 0 0 var(--fg-sel); }
+.ed-tab-add { flex: none; align-self: center; margin: 0 0 0 4px; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--fg-muted); font-size: 17px; line-height: 1; cursor: pointer; }
+.ed-tab-add:hover { color: var(--fg-text); background: var(--fg-panel); }
+.ed-split { grid-row: 2; width: 9px; z-index: 6; cursor: col-resize; position: relative; touch-action: none; }
+.ed-split::after { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; transition: background .12s, width .12s, left .12s; }
+.ed-split:hover::after, .ed-split.active::after, .ed-split:focus-visible::after { background: var(--fg-sel); width: 3px; left: 3px; }
+.ed-split:focus-visible { outline: none; }
+.ed-split-l { grid-column: 1; justify-self: end; margin-right: -5px; }
+.ed-split-r { grid-column: 3; justify-self: start; margin-left: -5px; }
+.ed-split-y { grid-row: auto; width: auto; height: 9px; flex: none; margin: -5px 0 -4px; cursor: row-resize; }
+.ed-split-y::after { top: 4px; bottom: auto; left: 0; right: 0; width: auto; height: 1px; }
+.ed-split-y:hover::after, .ed-split-y.active::after, .ed-split-y:focus-visible::after { width: auto; left: 0; height: 3px; top: 3px; }
+body.ed-resizing-y { cursor: row-resize; user-select: none; }
+body.ed-resizing-y .ed-preview { pointer-events: none; }
+/* przełączniki paneli: przy krawędzi, po której stronie jest panel */
+.ed-pane-t { color: var(--fg-muted); }
+.ed-pane-t:hover { color: var(--fg-text); }
+.ed-pane-t .fill { fill: currentColor; stroke: none; opacity: 0; }
+.ed-pane-t[aria-pressed="true"] { color: var(--fg-text); }
+.ed-pane-t[aria-pressed="true"] .fill { opacity: .55; }
+.ed-btn.ed-pane-t[aria-pressed="true"] { background: var(--fg-panel); border-color: var(--fg-line); }
+/* Struktura i Właściwości: mini zakładki w kolorze tła panelu, przyklejone do krawędzi po stronie panelu,
+   zaokrąglone do środka; zakrywają linię oddzielającą panel, więc wyglądają jak jego wypustka */
+.ed-toolbar .ed-btn.ed-pane-t { position: relative; z-index: 7; height: 32px; padding: 0 9px; background: var(--fg-panel); border: 1px solid var(--fg-line); }
+.ed-toolbar #vLeft { margin: 0 6px 0 -15px; border-left: 0; border-radius: 0 10px 10px 0; padding-left: 10px; }
+.ed-toolbar #vRight { margin: 0 -15px 0 auto; border-right: 0; border-radius: 10px 0 0 10px; padding-right: 10px; }
+.ed-toolbar .ed-btn.ed-pane-t:hover { background: color-mix(in srgb, var(--fg-text) 6%, var(--fg-panel)); }
+/* zakładki YAML i historii wystają od dołu, tak jak zakładki paneli po bokach: tło panelu, zaokrąglone od strony grafu.
+   Zamknięta: dolna krawędź to ciągła linia na górnej krawędzi paska stanu (panel wysuwa się spod niej).
+   Otwarta: bez dolnej linii, połączona z panelem */
+.ed-btabs { position: relative; height: 0; flex: none; z-index: 8; display: flex; justify-content: flex-end; align-items: flex-end; gap: 6px; padding-right: 18px; }
+.ed-btabs .ed-btn.ed-pane-b { flex: none; margin-bottom: -1px; height: 28px; gap: 6px; padding: 0 12px; background: var(--fg-panel);
+  border: 1px solid var(--fg-line); border-radius: 10px 10px 0 0; }
+.ed-btabs .ed-btn.ed-pane-b.icon { padding: 0 9px; }
+/* zakładka otwartego panelu łączy się z nim: dolna linia w kolorze panelu zakrywa jego górną krawędź */
+.ed-btabs .ed-btn.ed-pane-b[aria-pressed="true"], .ed-btabs .ed-btn.ed-pane-b[aria-pressed="true"]:hover { background: var(--fg-panel); border-bottom-color: var(--fg-panel); }
+.ed-btabs .ed-btn.ed-pane-b:hover { background: color-mix(in srgb, var(--fg-text) 6%, var(--fg-panel)); }
+
+
+body.ed-resizing { cursor: col-resize; user-select: none; }
+body.ed-resizing .ed-preview { pointer-events: none; }
+.ed-top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 14px; background: var(--fg-panel); border-bottom: 1px solid var(--fg-line); }
+.ed-brand { font-weight: 700; font-size: 14px; margin-right: 6px; }
+.ed-brand span { color: var(--fg-muted); font-weight: 500; }
+.ed-sep { width: 1px; align-self: stretch; background: var(--fg-line); }
+.ed-btn { font: inherit; font-size: 13px; color: var(--fg-text); background: var(--fg-panel); border: 1px solid var(--fg-line); border-radius: 6px; padding: 5px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ed-btn:hover { border-color: var(--fg-muted); }
+.ed-btn:disabled { opacity: .45; cursor: default; }
+.ed-btn.primary { background: var(--fg-sel); border-color: var(--fg-sel); color: var(--fg-panel); font-weight: 600; }
+.ed-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--fg-sel) 85%, var(--fg-text)); border-color: color-mix(in srgb, var(--fg-sel) 85%, var(--fg-text)); }
+.ed-btn.danger { color: var(--c-red); border-color: color-mix(in srgb, var(--c-red) 45%, var(--fg-line)); }
+.ed-btn.danger:hover:not(:disabled) { border-color: var(--c-red); background: color-mix(in srgb, var(--c-red) 14%, var(--fg-panel)); }
+.ed-btn.danger.armed, .ed-btn.danger.armed:hover { background: var(--c-red); color: var(--fg-panel); }
+.ed-btn.small { padding: 2px 7px; font-size: 12px; }
+.ed-btn.icon { padding: 2px 6px; min-width: 24px; justify-content: center; }
+.ed-top .ed-btn.icon { padding: 5px 7px; }
+.ed-iconbar { display: flex; gap: 4px; }
+.ed-splitbtn { display: inline-flex; }
+.ed-splitbtn > .ed-btn:first-child { border-radius: 6px 0 0 6px; }
+.ed-splitbtn > .ed-btn + .ed-btn { border-radius: 0 6px 6px 0; margin-left: -1px; padding-left: 5px; padding-right: 5px; }
+.ed-splitbtn > .ed-btn:hover, .ed-splitbtn > .ed-btn:focus-visible { position: relative; z-index: 1; }
+#exMenu { min-width: 240px; }
+#openMenu button b { min-width: 104px; }
+.ed-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--fg-sel) 14%, var(--fg-panel)); border-color: var(--fg-sel); }
+.ed-btn:focus-visible, .ed-in:focus-visible, .ed-row:focus-visible, .ed-sw:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 1px; }
+.ed-file { position: relative; overflow: hidden; }
+.ed-dlg { width: min(860px, 94vw); max-height: 88vh; padding: 0; border: 1px solid var(--fg-line); border-radius: 10px; background: var(--fg-panel); color: var(--fg-text); box-shadow: 0 18px 50px rgb(0 0 0 / .3); }
+.ed-dlg[open] { display: flex; flex-direction: column; }
+.ed-dlg::backdrop { background: rgb(0 0 0 / .35); }
+.ed-dlg-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 8px; }
+.ed-dlg-h h2 { margin: 0; font-size: 16px; }
+.ed-dlg-b { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.ed-dlg-b p { margin: 0; font-size: 13px; color: var(--fg-muted); }
+.ed-dlg textarea { flex: 1; min-height: 340px; resize: vertical; font-family: var(--fg-mono); font-size: 12.5px; line-height: 1.5; white-space: pre; tab-size: 2;
+  color: var(--fg-text); background: var(--fg-bg); border: 1px solid var(--fg-line); border-radius: 6px; padding: 8px 10px; }
+.ed-dlg textarea:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 1px; }
+.ed-dlg-msg { font-size: 12.5px; color: var(--fg-muted); min-height: 1.4em; }
+.ed-dlg-msg.err { color: var(--c-red); }
+.ed-dlg-msg ul { margin: 2px 0 0; padding-left: 18px; }
+.ed-dlg-f { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px 14px; }
+.ed-dlg-f .grow { flex: 1; }
+/* okno pytania (zamiast confirm() i natywnych okien): ikona, tytuł, tekst, przyciski po prawej */
+.ed-ask { width: min(460px, 92vw); }
+.ed-ask[open] { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; padding: 20px 20px 16px; animation: ed-ask-in .14s ease-out; }
+.ed-ask-ico { grid-row: span 2; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+  color: var(--c, var(--c-orange)); background: color-mix(in srgb, var(--c, var(--c-orange)) 14%, var(--fg-panel)); }
+.ed-ask h2 { margin: 2px 0 0; font-size: 15px; }
+.ed-ask p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-muted); }
+.ed-ask p b { color: var(--fg-text); font-weight: 600; }
+.ed-ask-f { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.ed-ask-f .lead { margin-right: auto; } /* „bez zapisywania” po lewej, z dala od „Zapisz” (jak w macOS) */
+.ed-ask .ed-btn:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 2px; }
+@keyframes ed-ask-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .ed-ask[open] { animation: none; } }
+.ed-btn.dirty { border-color: var(--c-orange); background: color-mix(in srgb, var(--c-orange) 14%, var(--fg-panel)); color: var(--fg-text); font-weight: 600; }
+.ed-btn.dirty::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c-orange); }
+.ed-unsaved { color: var(--c-orange); font-weight: 600; }
+.ed-menu { position: fixed; z-index: 50; min-width: 300px; padding: 4px; background: var(--fg-panel); color: var(--fg-text);
+  border: 1px solid var(--fg-line); border-radius: 9px; box-shadow: 0 14px 36px rgb(0 0 0 / .22); display: flex; flex-direction: column; }
+.ed-menu-h { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--fg-muted); padding: 8px 10px 3px; }
+.ed-menu button { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--fg-text);
+  background: none; border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.ed-menu button b { min-width: 74px; font-weight: 600; }
+.ed-menu button span { color: var(--fg-muted); font-size: 12px; }
+.ed-menu-check { border-top: 1px solid var(--fg-line) !important; border-radius: 0 0 6px 6px !important; margin-top: 4px; }
+.ed-menu-check b::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border: 1.5px solid var(--fg-muted); border-radius: 3px; }
+.ed-menu-check[aria-checked="true"] b::before { background: var(--fg-sel); border-color: var(--fg-sel);
+  box-shadow: inset 0 0 0 2px var(--fg-panel); }
+.ed-menu button:hover, .ed-menu button:focus-visible { background: color-mix(in srgb, var(--fg-sel) 12%, var(--fg-panel)); outline: none; }
+/* historia zmian: dolny panel jak YAML (wysokość wspólna, przełączane na pasku stanu) */
+.ed-hist-list { flex: 1; min-height: 0; list-style: none; margin: 0 -6px; padding: 2px; overflow: auto; }
+.ed-hrow { width: 100%; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; text-align: left; font: inherit; font-size: 13px;
+  color: var(--fg-text); background: none; border: 0; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.ed-hrow:hover { background: var(--fg-bg); }
+.ed-hrow:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: -2px; }
+.ed-hrow time { font-family: var(--fg-mono); font-size: 11.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.ed-hrow .lbl { overflow-wrap: anywhere; }
+.ed-hrow .tag { font-size: 11px; color: var(--fg-muted); white-space: nowrap; }
+.ed-hrow.cur { background: color-mix(in srgb, var(--fg-sel) 14%, var(--fg-panel)); box-shadow: inset 3px 0 0 var(--fg-sel); }
+.ed-hrow.cur .lbl { font-weight: 600; }
+.ed-hrow.cur .tag { color: var(--fg-sel); font-weight: 600; }
+.ed-hrow.future .lbl, .ed-hrow.future time { opacity: .55; }
+.ed-hrow.future .lbl { font-style: italic; }
+.ed-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.ed-side, .ed-insp { background: var(--fg-panel); overflow: auto; min-height: 0; }
+.ed-side { border-right: 1px solid var(--fg-line); display: flex; flex-direction: column; }
+.ed-insp { border-left: 1px solid var(--fg-line); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+/* strzałki do zaznaczonego elementu przewiniętego poza widok drzewa (góra: pod nagłówkiem, dół: przy dolnej krawędzi) */
+.ed-side-h { position: relative; }
+.ed-seek-b { position: sticky; bottom: 0; height: 0; margin-top: auto; z-index: 1; }
+.ed-seek { position: absolute; left: 50%; translate: -50% 0; width: 34px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--fg-sel); color: var(--fg-panel); box-shadow: 0 2px 8px rgb(0 0 0 / .28); animation: ed-seek-in .18s ease-out; }
+.ed-seek[hidden] { display: none; }
+.ed-seek.up { top: calc(100% + 6px); }
+.ed-seek.down { bottom: 8px; }
+.ed-seek svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ed-seek:hover { background: color-mix(in srgb, var(--fg-sel) 85%, var(--fg-text)); }
+.ed-seek:focus-visible { outline: 2px solid var(--fg-text); outline-offset: 2px; }
+@keyframes ed-seek-in { from { opacity: 0; } }
+.ed-side-h { font-weight: 600; font-size: 12.5px; padding: 9px 12px; border-bottom: 1px solid var(--fg-line); position: sticky; top: 0; background: var(--fg-panel); z-index: 1; }
+.ed-tree { padding: 8px 8px 20px; display: flex; flex-direction: column; gap: 12px; }
+.ed-sec-h { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 4px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--fg-muted); }
+.ed-sec + .ed-sec { border-top: 1px solid var(--fg-line); padding-top: 10px; } /* szara linia między sekcjami */
+.ed-sec-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; border-radius: 4px; }
+.ed-sec-t:hover { color: var(--fg-text); }
+.ed-sec-t:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 2px; }
+.ed-sec-t .chev { flex: none; width: 12px; height: 12px; display: block; transition: transform .15s; }
+.ed-sec.collapsed .chev { transform: rotate(-90deg); }
+.ed-sec.collapsed .ed-sec-h { padding-bottom: 0; }
+/* zwinięta sekcja z zaznaczonym elementem: nagłówek wyróżniony, żeby było wiadomo, gdzie go szukać */
+.ed-sec.has-sel .ed-sec-h { margin: 0 -4px; padding: 3px 8px; border-radius: 6px; color: var(--fg-sel); background: color-mix(in srgb, var(--fg-sel) 13%, var(--fg-panel)); }
+.ed-sec.has-sel .ed-sec-t:hover { color: var(--fg-sel); }
+.ed-sec.has-sel .ed-sec-t::after { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ed-row { width: 100%; text-align: left; font: inherit; color: var(--fg-text); background: none; border: 0; border-radius: 5px; padding: 5px 7px; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ed-row:hover { background: var(--fg-bg); }
+.ed-row[aria-current="true"] { background: color-mix(in srgb, var(--fg-sel) 13%, var(--fg-panel)); }
+.ed-row .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.ed-row .id { font-family: var(--fg-mono); font-size: 11px; color: var(--fg-muted); white-space: nowrap; }
+.ed-row.sub { padding-left: 22px; }
+.ed-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--c, transparent); border: 1.5px solid var(--c, var(--fg-muted)); }
+.ed-line { width: 16px; height: 0; border-top: 3px solid var(--c); flex: none; }
+.ed-empty { color: var(--fg-muted); font-size: 12.5px; padding: 2px 7px; }
+.ed-yaml { height: var(--yamlH, 260px); flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 14px 10px; background: var(--fg-panel); border-top: 1px solid var(--fg-line); box-sizing: border-box; }
+.ed-yaml-h { display: flex; align-items: center; gap: 12px; }
+.ed-yaml-h b { font-size: 12.5px; }
+.ed-yaml-h .ed-yaml-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-code { position: relative; flex: 1; min-height: 0; border: 1px solid var(--fg-line); border-radius: 5px; background: var(--fg-bg); overflow: hidden; }
+.ed-code:focus-within { outline: 2px solid var(--fg-sel); outline-offset: 1px; }
+.ed-code pre, .ed-code textarea { position: absolute; inset: 0; margin: 0; padding: 8px 10px; box-sizing: border-box; border: 0; border-radius: 0;
+  font-family: var(--fg-mono); font-size: 12px; line-height: 1.5; tab-size: 2; white-space: pre; overflow-wrap: normal; letter-spacing: 0; font-variant-ligatures: none; }
+.ed-code pre { overflow: hidden; pointer-events: none; color: var(--fg-text); }
+.ed-code textarea { width: 100%; height: 100%; resize: none; overflow: auto; background: transparent; color: transparent; caret-color: var(--fg-text); outline: none; }
+.ed-code textarea::selection { background: color-mix(in srgb, var(--fg-sel) 30%, transparent); color: transparent; }
+.y-key { color: var(--c-blue); }
+.y-str { color: var(--c-green); }
+.y-num { color: var(--c-orange); }
+.y-bool { color: var(--c-purple); }
+.y-com { color: var(--fg-muted); font-style: italic; }
+.y-pun { color: var(--fg-muted); }
+.y-dash { color: var(--c-pink); font-weight: 600; }
+.y-ind { color: var(--c-purple); }
+.y-band { position: absolute; left: 0; min-width: 100%; width: var(--yw, 100%); z-index: -1; }
+.ed-code pre { isolation: isolate; }
+.ed-code code { font: inherit; line-height: inherit; } /* domyślny font <code> rozjeżdżał wysokość linii względem pola tekstowego */
+.y-cur { background: color-mix(in srgb, var(--fg-sel) 12%, transparent); box-shadow: inset 3px 0 0 var(--fg-sel); }
+.y-err { background: color-mix(in srgb, var(--c-red) 18%, transparent); box-shadow: inset 3px 0 0 var(--c-red); }
+.ed-yaml-msg { font-size: 12px; color: var(--fg-muted); }
+.ed-yaml-msg.err { color: var(--c-red); white-space: pre-wrap; }
+
+.ed-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.ed-toolbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--fg-line); background: var(--fg-bg); }
+.ed-draw { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 7px; background: color-mix(in srgb, var(--c) 14%, var(--fg-panel)); border: 1.5px solid var(--c); font-size: 13px; }
+.ed-draw label { display: inline-flex; gap: 5px; align-items: center; }
+.ed-preview { flex: 1; overflow: auto; padding: 18px 18px 34px; min-height: 0; } /* dół: miejsce na zakładkę YAML */
+.ed-preview .fg-node { cursor: grab; user-select: none; touch-action: none; }
+.ed-preview.drawing .fg-node { cursor: crosshair; }
+.ed-preview .fg-node { touch-action: none; }
+.ed-preview.fg-node-drag, .ed-preview.fg-node-drag * { cursor: grabbing !important; user-select: none; transition: none !important; }
+.ed-preview.drawing .fg-node:hover { outline: 2px dashed var(--fg-sel); outline-offset: 3px; }
+
+.ed-insp h2 { font-size: 15px; margin: 0; display: flex; align-items: center; gap: 8px; }
+.ed-insp h2 small { font-weight: 500; color: var(--fg-muted); font-size: 12px; }
+.ed-field { display: flex; flex-direction: column; gap: 4px; }
+.ed-field > label, .ed-lab { font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.ed-hint { font-size: 11.5px; color: var(--fg-muted); }
+.ed-in { font: inherit; font-size: 13px; color: var(--fg-text); background: var(--fg-bg); border: 1px solid var(--fg-line); border-radius: 5px; padding: 5px 8px; width: 100%; box-sizing: border-box; min-width: 0; }
+textarea.ed-in { resize: vertical; }
+/* stylowana lista wyboru */
+.ed-sel-b { display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer; min-height: 30px; }
+.ed-sel-b:hover { border-color: var(--fg-muted); }
+.ed-sel-b[aria-expanded="true"] { border-color: var(--fg-sel); }
+.ed-sel-b:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 1px; }
+.ed-sel-b .lbl { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-sel-b .lbl.ph { color: var(--fg-muted); }
+.ed-sel-b .hint { flex: 0 4 auto; min-width: 0; }
+.ed-sel-o .hint { flex: none; }
+.ed-sel-b .hint, .ed-sel-o .hint { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--fg-mono); font-size: 11.5px; color: var(--fg-muted); }
+.ed-sel-b .chev { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--fg-muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.ed-sel-b[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.ed-sel-b .ico, .ed-sel-o .ico { flex: none; color: var(--fg-muted); }
+.ed-sel-pop { position: fixed; z-index: 60; display: flex; flex-direction: column; padding: 4px; box-sizing: border-box; background: var(--fg-panel); color: var(--fg-text);
+  border: 1px solid var(--fg-line); border-radius: 9px; box-shadow: 0 14px 36px rgb(0 0 0 / .22); outline: none; animation: ed-sel-in .12s ease-out; }
+@keyframes ed-sel-in { from { opacity: 0; transform: translateY(-3px); } }
+.ed-sel-f { flex: none; margin: 2px 2px 6px; width: auto; }
+.ed-sel-l { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.ed-sel-o { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.ed-sel-o .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-sel-o.on { background: color-mix(in srgb, var(--fg-sel) 13%, var(--fg-panel)); }
+.ed-sel-o[aria-selected="true"] { color: var(--fg-sel); font-weight: 600; }
+.ed-sel-o[aria-selected="true"] .ico { color: var(--fg-sel); }
+.ed-sel-o.action { color: var(--fg-sel); border-top: 1px solid var(--fg-line); border-radius: 0 0 6px 6px; margin-top: 3px; }
+.ed-sel-none { padding: 8px 10px; font-size: 12.5px; color: var(--fg-muted); }
+.ed-arrow.txt { font: inherit; font-size: 12px; padding: 3px 9px; min-height: 28px; box-sizing: border-box; }
+.ed-in.mono { font-family: var(--fg-mono); font-size: 12px; }
+.ed-in.bad { border-color: var(--c-red); }
+.ed-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ed-colors { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ed-sw { width: 22px; height: 22px; border-radius: 5px; border: 2px solid transparent; background: var(--c); cursor: pointer; padding: 0; }
+.ed-sw.none { background: repeating-linear-gradient(45deg, var(--fg-line) 0 3px, var(--fg-panel) 3px 6px); }
+.ed-sw[aria-pressed="true"] { border-color: var(--fg-text); box-shadow: 0 0 0 2px var(--fg-panel) inset; }
+.ed-sw.doc { border-radius: 50%; }
+.ed-arrows { display: flex; flex-wrap: wrap; gap: 4px; }
+.ed-arrow { display: inline-grid; place-items: center; padding: 3px 5px; border: 1px solid var(--fg-line); border-radius: 6px; background: var(--fg-panel); color: var(--fg-muted); cursor: pointer; }
+.ed-arrow svg .f { fill: currentColor; }
+.ed-range { display: flex; align-items: center; gap: 8px; }
+.ed-range input { flex: 1; }
+.ed-arrow:hover { color: var(--fg-text); border-color: var(--fg-muted); }
+.ed-arrow[aria-checked="true"] { color: var(--c, var(--fg-sel)); border-color: var(--c, var(--fg-sel)); background: color-mix(in srgb, var(--c, var(--fg-sel)) 12%, var(--fg-panel)); }
+.ed-arrow:focus-visible { outline: 2px solid var(--fg-sel); outline-offset: 1px; }
+.ed-sw.add { background: none; border: 1px dashed var(--fg-line); color: var(--fg-muted); font-size: 14px; line-height: 1; }
+.ed-sw.add:hover { color: var(--fg-text); border-color: var(--fg-muted); }
+.ed-dcolors { display: grid; gap: 6px; }
+.ed-dcolor { display: grid; grid-template-columns: 22px minmax(0, 1fr) 30px 30px auto auto; gap: 6px; align-items: center; }
+.ed-dcolor input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--fg-line); border-radius: 5px; background: none; cursor: pointer; }
+.ed-colors input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--fg-line); border-radius: 5px; background: none; cursor: pointer; }
+.ed-kv { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 4px; align-items: center; }
+.ed-actions-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ed-check { display: flex; gap: 7px; align-items: center; font-size: 13px; }
+
+.ed-path { display: flex; flex-direction: column; gap: 6px; }
+.ed-step { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; align-items: start; }
+.ed-step .num { font-family: var(--fg-mono); font-size: 11px; color: var(--fg-muted); padding-top: 7px; text-align: right; }
+.ed-step-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ed-step-ctl { display: flex; gap: 3px; padding-top: 2px; }
+.ed-par { border: 1px solid var(--fg-line); border-radius: 9px; padding: 8px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  background: color-mix(in srgb, var(--fg-bg) 55%, var(--fg-panel)); }
+.ed-par-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ed-par-t { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--fg-text); }
+.ed-par-t svg { width: 14px; height: 14px; fill: none; stroke: var(--fg-sel); stroke-width: 1.6; stroke-linecap: round; }
+.ed-par-m { margin-left: auto; font-size: 11px; color: var(--fg-muted); white-space: nowrap; padding: 1px 8px; border: 1px solid var(--fg-line); border-radius: 999px; background: var(--fg-panel); }
+/* gałąź: litera w kółku, pod nią pionowa linia prowadząca przez kroki gałęzi */
+.ed-branch { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ed-branch-h { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.ed-branch-h .ed-btn { margin-left: auto; }
+.ed-branch-l { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: var(--fg-sel); background: color-mix(in srgb, var(--fg-sel) 16%, var(--fg-panel)); border: 1px solid color-mix(in srgb, var(--fg-sel) 40%, var(--fg-line)); }
+.ed-branch-b { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-left: 9.5px; padding-left: 14px; border-left: 1.5px solid color-mix(in srgb, var(--fg-sel) 35%, var(--fg-line)); }
+.ed-bitem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; }
+.ed-bitem > .ed-sel-b { grid-column: 1; grid-row: 1; }
+.ed-bitem > .ed-sel-b .hint { display: none; } /* wąsko: tylko nazwa węzła, id jest na liście */
+.ed-bitem > .ed-bdel { grid-column: 2; grid-row: 1; align-self: center; }
+.ed-bitem > input { grid-column: 1; grid-row: 2; font-size: 12px; padding: 4px 8px; }
+.ed-bnext { text-align: center; color: var(--fg-muted); font-size: 11px; line-height: 1; margin-right: 30px; }
+/* przerywane pole dodawania (dalszy krok, nowa gałąź) */
+.ed-sel-b.ghost { border-style: dashed; background: transparent; color: var(--fg-muted); min-height: 28px; }
+.ed-sel-b.ghost .lbl.ph { color: var(--fg-muted); }
+.ed-sel-b.ghost:hover { color: var(--fg-text); border-color: var(--fg-sel); }
+.ed-flowlist { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.ed-status { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 4px 8px 4px 14px; font-size: 12px; color: var(--fg-muted); background: var(--fg-panel); border-top: 1px solid var(--fg-line); }
+.ed-status-info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 2px 0; }
+/* YAML na pasku stanu: zostaje widoczny, gdy panel jest otwarty, tylko zmienia kolor */
+.ed-status .err { color: var(--c-red); font-weight: 600; }
+.ed-status .msg { color: var(--fg-text); }
+kbd { font-family: var(--fg-mono); font-size: 11px; border: 1px solid var(--fg-line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--fg-bg); }
+
+@media (max-width: 1050px) {
+  .ed-app { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(60vh, 1fr) auto auto; height: auto; }
+  .ed-side, .ed-main, .ed-insp { grid-column: 1; grid-row: auto; width: auto; justify-self: stretch; }
+  .ed-app { overflow: visible; }
+  .ed-split-l, .ed-split-r { display: none; }
+  .ed-side { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--fg-line); }
+  .ed-insp { border-left: 0; border-top: 1px solid var(--fg-line); }
+}
+</style>
+</head>
+<body>
+<div class="ed-app">
+  <header class="ed-top">
+    <div class="ed-brand">FlowGraph <span>edytor</span></div>
+    <div class="ed-splitbtn" role="group" aria-label="Nowy graf">
+      <button class="ed-btn" id="bNew" type="button" title="Nowy pusty graf w nowej karcie">Nowy</button>
+      <button class="ed-btn" id="bNewMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="exMenu" aria-label="Nowy z przykładu" title="Nowy z przykładu"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+    <div class="ed-splitbtn" role="group" aria-label="Otwórz">
+      <span class="ed-btn ed-file">Otwórz<input type="file" id="bOpen" multiple accept=".yml,.yaml,.json,.mmd,.mermaid"></span>
+      <button class="ed-btn" id="bOpenMenu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="openMenu" aria-label="Więcej sposobów otwierania" title="Otwórz plik albo zaimportuj z Mermaid"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+    <button class="ed-btn" id="bSave" type="button" title="Zapisz YAML (Cmd/Ctrl+S)">Zapisz</button>
+    <button class="ed-btn primary" id="bExport" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="expMenu">Eksportuj ▾</button>
+    <div class="ed-sep"></div>
+    <div class="ed-iconbar">
+      <button class="ed-btn icon" id="bUndo" type="button" aria-label="Cofnij" title="Cofnij (Cmd/Ctrl+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="ed-btn icon" id="bRedo" type="button" aria-label="Ponów" title="Ponów (Cmd/Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+    </div>
+    <div class="ed-sep"></div>
+    <div class="ed-tabs" id="tabs" role="tablist" aria-label="Otwarte pliki"></div>
+    <button class="ed-btn icon" id="bTheme" type="button"></button>
+  </header>
+
+  <aside class="ed-side">
+    <div class="ed-side-h">Struktura<button type="button" class="ed-seek up" id="seekUp" hidden aria-label="Zaznaczony element jest wyżej" title="Zaznaczony element jest wyżej"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5 9 7.5"/></svg></button></div>
+    <div class="ed-tree" id="tree"></div>
+    <div class="ed-seek-b"><button type="button" class="ed-seek down" id="seekDown" hidden aria-label="Zaznaczony element jest niżej" title="Zaznaczony element jest niżej"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg></button></div>
+  </aside>
+
+  <main class="ed-main">
+    <div class="ed-toolbar">
+      <button class="ed-btn icon ed-pane-t" id="vLeft" type="button" aria-pressed="true" aria-label="Panel struktury" title="Pokaż lub ukryj panel struktury"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/><path class="fill" d="M4.5 5.5h3v13h-3z"/></svg></button>
+      <button class="ed-btn" id="tNode" type="button">＋ Węzeł</button>
+      <button class="ed-btn" id="tFlow" type="button">＋ Przepływ</button>
+      <button class="ed-btn" id="tGroup" type="button">＋ Grupa</button>
+      <button class="ed-btn" id="tNote" type="button">＋ Notatka</button>
+      <button class="ed-btn" id="tArrange" type="button" title="Gdy zaznaczona jest grupa: układa automatycznie tylko ją. W innym przypadku: cały graf.">⟲ Rozmieść automatycznie</button>
+      <div id="drawBar"></div>
+      <button class="ed-btn icon ed-pane-t ed-pane-r" id="vRight" type="button" aria-pressed="true" aria-label="Panel właściwości" title="Pokaż lub ukryj panel właściwości"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M15 4v16"/><path class="fill" d="M16.5 5.5h3v13h-3z"/></svg></button>
+    </div>
+    <div class="ed-preview" id="preview"></div>
+    <div class="ed-btabs"><button class="ed-btn small ed-pane-t ed-pane-b" id="vYaml" aria-controls="yamlPane" type="button" aria-pressed="false" title="Pokaż lub ukryj kod YAML pod grafem"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 14h18"/><path class="fill" d="M4.5 15.5h15v3h-15z"/></svg>YAML</button><button class="ed-btn small icon ed-pane-t ed-pane-b" id="bHist" aria-label="Historia zmian" type="button" aria-pressed="false" aria-controls="histPane" title="Pokaż lub ukryj historię zmian pod grafem (lista z powrotem do dowolnego stanu)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg></button></div>
+    <div class="ed-split ed-split-y" id="splitY" role="separator" aria-orientation="horizontal" aria-label="Wysokość panelu YAML" tabindex="0" title="Przeciągnij, żeby zmienić wysokość. Dwuklik przywraca domyślną." hidden></div>
+    <section class="ed-yaml ed-histpane" id="histPane" aria-label="Historia zmian" hidden></section>
+    <section class="ed-yaml" id="yamlPane" aria-label="Kod YAML" hidden>
+      <div class="ed-yaml-h"><b>YAML</b><span class="ed-yaml-msg" id="yamlMsg">Zmiany w YAML od razu trafiają do grafu.</span>
+        <button class="ed-btn icon small" id="yamlClose" type="button" aria-label="Ukryj YAML" title="Ukryj YAML">✕</button></div>
+      <div class="ed-code"><pre aria-hidden="true"><code id="yamlHl"></code></pre><textarea id="yamlText" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Kod YAML grafu"></textarea></div>
+    </section>
+  </main>
+
+  <aside class="ed-insp" id="insp" aria-label="Właściwości"></aside>
+  <div class="ed-split ed-split-l" id="splitL" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu struktury" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
+  <div class="ed-split ed-split-r" id="splitR" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu właściwości" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
+  <footer class="ed-status"><div class="ed-status-info" id="status" role="status"></div></footer>
+  <dialog class="ed-dlg" id="mmDlg" aria-labelledby="mmTitle">
+    <div class="ed-dlg-h"><h2 id="mmTitle">Mermaid</h2><button class="ed-btn icon" type="button" id="mmClose" aria-label="Zamknij">✕</button></div>
+    <div class="ed-dlg-b">
+      <p>Poniżej bieżący graf jako Mermaid flowchart. Możesz go skopiować albo wkleić tu własny diagram (<code>flowchart</code> / <code>graph</code>) i wczytać go do edytora. Linie <code>%% fg:</code> przechowują przepływy, opisy i pozycje, więc eksport i ponowny import nic nie gubią.</p>
+      <textarea id="mmText" spellcheck="false" wrap="off" aria-label="Tekst Mermaid"></textarea>
+      <div class="ed-dlg-msg" id="mmMsg" role="status"></div>
+    </div>
+    <div class="ed-dlg-f">
+      <button class="ed-btn" type="button" id="mmFrom">↻ Z bieżącego grafu</button>
+      <span class="ed-btn ed-file">Otwórz plik .mmd…<input type="file" id="mmFile" accept=".mmd,.mermaid,.md,.txt"></span>
+      <button class="ed-btn" type="button" id="mmCopy">Kopiuj</button>
+      <button class="ed-btn" type="button" id="mmSave">Zapisz .mmd</button>
+      <span class="grow"></span>
+      <button class="ed-btn primary" type="button" id="mmImport">Wczytaj do edytora</button>
+    </div>
+  </dialog>
+  <div class="ed-menu" id="exMenu" role="menu" aria-label="Nowy graf" hidden></div>
+  <div class="ed-menu" id="openMenu" role="menu" aria-label="Otwórz" hidden>
+    <button type="button" role="menuitem" data-open="file"><b>Otwórz plik…</b><span>YAML, JSON albo Mermaid (.mmd)</span></button>
+    <div class="ed-menu-h">Import</div>
+    <button type="button" role="menuitem" data-open="mermaid"><b>Z Mermaid…</b><span>wklej tekst flowchart albo otwórz .mmd</span></button>
+  </div>
+  <div class="ed-menu" id="expMenu" role="menu" aria-label="Eksportuj" hidden>
+    <div class="ed-menu-h">Dane</div>
+    <button type="button" role="menuitem" data-exp="html"><b>HTML</b><span>samodzielna strona z legendą i notatkami</span></button>
+    <button type="button" role="menuitem" data-exp="mermaid"><b>Mermaid…</b><span>podgląd, kopiowanie, także import</span></button>
+    <div class="ed-menu-h">Obraz</div>
+    <button type="button" role="menuitem" data-exp="png"><b>PNG</b><span>podwójna rozdzielczość</span></button>
+    <button type="button" role="menuitem" data-exp="svg"><b>SVG</b><span>wektor, otworzysz w Figmie i Inkscape</span></button>
+    <button type="button" role="menuitem" data-exp="jpg"><b>JPG</b><span>mniejszy plik, zawsze z tłem</span></button>
+    <button type="button" role="menuitemcheckbox" aria-checked="false" id="expTransp" class="ed-menu-check"><b>Przezroczyste tło</b><span>dla PNG i SVG</span></button>
+  </div>
+</div>
+
+<script id="lib-dagre">
+__DAGRE__
+</script>
+<script id="lib-yaml">
+__JSYAML__
+</script>
+<script id="lib-fg">
+__FLOWGRAPH__
+</script>
+<script id="lib-mm">
+__MERMAID__
+</script>
+<script>
+"use strict";
+const VIEWER_SHELL = __SHELL__;
+const INITIAL = __SPEC__;
+const EXAMPLES = __EXAMPLES__;
+const STORE_KEY = "flowgraph-editor-v1";
+
+const $ = s => document.querySelector(s);
+const isObj = v => v && typeof v === "object" && !Array.isArray(v);
+const clone = o => JSON.parse(JSON.stringify(o));
+const nid = x => isObj(x) ? String(x.node) : String(x);
+
+/* ---------- stan ---------- */
+const S = { spec: null, sel: { kind: "settings" }, draw: null, drawBranch: false, tl: [], cur: 0, ck: null, ct: 0, file: null, msg: "", savedAt: null, yamlOpen: false, handle: null, savedJson: null, docKey: "sesja", path: null, diskText: null, winTitle: "" };
+
+function prep(spec) {
+  spec = isObj(spec) ? spec : {};
+  for (const k of ["groups", "nodes", "flows", "notes"]) spec[k] = Array.isArray(spec[k]) ? spec[k] : [];
+  spec.nodes = spec.nodes.map(n => (typeof n === "string" || typeof n === "number") ? { id: String(n) } : n);
+  if (spec.title == null) spec.title = "Nowy graf";
+  return spec;
+}
+
+/* ---------- pomocnicze: dane ---------- */
+const findNode = (sp, id) => sp.nodes.find(n => isObj(n) && String(n.id) === id);
+const findFlow = (sp, id) => sp.flows.find(f => isObj(f) && String(f.id) === id);
+const findGroup = (sp, id) => sp.groups.find(g => isObj(g) && String(g.id) === id);
+
+function slug(s) {
+  return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l").replace(/Ł/g, "L")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x";
+}
+function uniqId(base, taken) {
+  const set = new Set(taken.map(String));
+  let id = slug(base), i = 2;
+  if (!set.has(id)) return id;
+  while (set.has(`${id}-${i}`)) i++;
+  return `${id}-${i}`;
+}
+const allIds = sp => [...sp.nodes.map(n => n.id), ...sp.groups.map(g => g.id), ...sp.flows.map(f => f.id)];
+
+function mapPath(path, fn) { // fn(item) -> item | null; zachowuje strukturę rozgałęzień
+  const out = [];
+  for (const it of path || []) {
+    if (Array.isArray(it)) {
+      const brs = it.map(br => Array.isArray(br) ? mapPath(br, fn) : fn(br)).filter(b => b != null && !(Array.isArray(b) && !b.length));
+      if (brs.length) out.push(brs);
+    } else { const r = fn(it); if (r != null) out.push(r); }
+  }
+  return out;
+}
+function pathNodes(path, acc = new Set()) { mapPath(path, it => { acc.add(nid(it)); return it; }); return acc; }
+
+function renameNode(sp, a, b) {
+  const n = findNode(sp, a); if (n) n.id = b;
+  sp.flows.forEach(f => { if (Array.isArray(f.path)) f.path = mapPath(f.path, it => nid(it) === a ? (isObj(it) ? { ...it, node: b } : b) : it); });
+  (sp.edges || []).forEach(e => { if (String(e.from) === a) e.from = b; if (String(e.to) === a) e.to = b; });
+}
+function removeNode(sp, id) {
+  sp.nodes = sp.nodes.filter(n => String(n.id) !== id);
+  sp.flows.forEach(f => { if (Array.isArray(f.path)) f.path = mapPath(f.path, it => nid(it) === id ? null : it); });
+  if (sp.edges) sp.edges = sp.edges.filter(e => String(e.from) !== id && String(e.to) !== id);
+}
+function renameGroup(sp, a, b) {
+  const g = findGroup(sp, a); if (g) g.id = b;
+  sp.nodes.forEach(n => { if (String(n.group) === a) n.group = b; });
+  sp.groups.forEach(x => { if (String(x.parent) === a) x.parent = b; });
+}
+function removeGroup(sp, id) {
+  const g = findGroup(sp, id);
+  sp.groups = sp.groups.filter(x => String(x.id) !== id);
+  sp.nodes.forEach(n => { if (String(n.group) === id) { if (g?.parent) n.group = g.parent; else delete n.group; } });
+  sp.groups.forEach(x => { if (String(x.parent) === id) { if (g?.parent) x.parent = g.parent; else delete x.parent; } });
+}
+
+/* Usuwa puste pola, żeby YAML był zwięzły. */
+function clean(v) {
+  if (Array.isArray(v)) return v.map(clean);
+  if (isObj(v)) {
+    const o = {};
+    for (const [k, x] of Object.entries(v)) {
+      const c = clean(x);
+      if (c === "" || c == null) continue;
+      if (Array.isArray(c) && !c.length && k !== "path") continue;
+      if (isObj(c) && !Object.keys(c).length) continue;
+      o[k] = c;
+    }
+    return o;
+  }
+  return v;
+}
+const toYaml = sp => jsyaml.dump(clean(sp), { lineWidth: 110, noRefs: true, flowLevel: 3, quotingType: '"' });
+
+/* ---------- historia i zapis ---------- */
+/* Historia to oś czasu stanów: S.tl[i] = { s: JSON grafu, label: opis zmiany prowadzącej do tego stanu, t: czas }.
+   S.cur wskazuje bieżący stan. Cofanie i ponawianie tylko przesuwa S.cur; nowa zmiana obcina „przyszłość”. */
+const HIST_KEY = "flowgraph-editor-history", HIST_MAX = 200;
+const FIELD = { label: "nazwa", sub: "podpis", pos: "pozycja", color: "kolor", path: "ścieżka", group: "grupa", shape: "kształt", meta: "właściwości",
+  items: "etykiety", width: "grubość", arrow: "grot", arrows: "grot", style: "styl linii", description: "opis", legend: "legenda", parent: "grupa nadrzędna", title: "tytuł", text: "tekst",
+  subtitle: "opis pod tytułem", direction: "kierunek", colors: "kolory" };
+const KIND = { nodes: { one: "Węzeł", acc: "węzeł", few: "węzły", many: "węzłów" }, flows: { one: "Przepływ", acc: "przepływ", few: "przepływy", many: "przepływów" },
+  groups: { one: "Grupa", acc: "grupę", few: "grupy", many: "grup" } };
+const plural = (n, k) => n === 1 ? k.acc : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? k.few : k.many;
+const quote = t => `„${String(t).length > 28 ? String(t).slice(0, 27) + "…" : t}”`;
+function describe(a, b) {
+  const parts = [];
+  const top = ["title", "subtitle", "direction", "colors"].filter(k => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+  if (top.length) parts.push("Graf: " + top.map(k => FIELD[k]).join(", "));
+  for (const coll of ["groups", "nodes", "flows"]) {
+    const K = KIND[coll];
+    const A = new Map((a[coll] || []).map(x => [String(x.id), x])), B = new Map((b[coll] || []).map(x => [String(x.id), x]));
+    const added = [...B.keys()].filter(k => !A.has(k)), removed = [...A.keys()].filter(k => !B.has(k));
+    const name = (x, id) => quote(x?.label || id);
+    if (added.length === 1 && removed.length === 1) { parts.push(`${K.one} ${name(B.get(added[0]), added[0])}: id ${removed[0]} → ${added[0]}`); }
+    else {
+      if (added.length) parts.push(added.length === 1 ? `Dodano ${K.acc} ${name(B.get(added[0]), added[0])}` : `Dodano ${added.length} ${plural(added.length, K)}`);
+      if (removed.length) parts.push(removed.length === 1 ? `Usunięto ${K.acc} ${name(A.get(removed[0]), removed[0])}` : `Usunięto ${removed.length} ${plural(removed.length, K)}`);
+    }
+    const changed = [], fields = new Set();
+    B.forEach((x, id) => {
+      const y = A.get(id); if (!y || JSON.stringify(x) === JSON.stringify(y)) return;
+      changed.push(id);
+      new Set([...Object.keys(x), ...Object.keys(y)]).forEach(f => { if (JSON.stringify(x[f] ?? null) !== JSON.stringify(y[f] ?? null)) fields.add(FIELD[f] || f); });
+    });
+    const fl = [...fields].slice(0, 3).join(", ") + (fields.size > 3 ? "…" : "");
+    if (changed.length === 1) parts.push(`${K.one} ${name(B.get(changed[0]), changed[0])}: ${fl}`);
+    else if (changed.length > 1) parts.push(`Zmieniono ${changed.length} ${plural(changed.length, K)} (${fl})`);
+    if (!added.length && !removed.length && !changed.length && [...A.keys()].join() !== [...B.keys()].join()) parts.push(`Zmieniono kolejność: ${K.many}`);
+  }
+  const na = a.notes || [], nb = b.notes || [];
+  const nt = n => isObj(n) ? n.title || n.text || "notatka" : n;
+  if (nb.length > na.length) parts.push("Dodano notatkę");
+  else if (nb.length < na.length) parts.push("Usunięto notatkę");
+  else nb.forEach((n, i) => { if (JSON.stringify(n) !== JSON.stringify(na[i])) parts.push(`Notatka ${quote(nt(n))}`); });
+  const known = new Set(["title", "subtitle", "direction", "colors", "groups", "nodes", "flows", "notes"]);
+  if ([...new Set([...Object.keys(a), ...Object.keys(b)])].some(k => !known.has(k) && JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null))) parts.push("Inne pola");
+  if (!parts.length) return "Zmiana";
+  return parts.slice(0, 2).join(" · ") + (parts.length > 2 ? ` · i ${parts.length - 2} więcej` : "");
+}
+function histInit(label) { S.tl = [{ s: JSON.stringify(S.spec), label, t: Date.now() }]; S.cur = 0; S.ck = null; }
+function histPush(label, key) {
+  const json = JSON.stringify(S.spec), now = Date.now(), top = S.tl[S.cur];
+  if (top && json === top.s) return false;
+  const merge = key && key === S.ck && now - S.ct < 1200 && S.cur > 0 && S.cur === S.tl.length - 1;
+  if (merge) { // kolejne znaki tego samego pola: jeden wpis
+    top.s = json; top.t = now; top.label = label || describe(JSON.parse(S.tl[S.cur - 1].s), S.spec);
+  } else {
+    S.tl.splice(S.cur + 1);
+    S.tl.push({ s: json, label: label || describe(top ? JSON.parse(top.s) : {}, S.spec), t: now });
+    if (S.tl.length > HIST_MAX) S.tl.splice(0, S.tl.length - HIST_MAX);
+    S.cur = S.tl.length - 1;
+  }
+  S.ck = key || null; S.ct = now;
+  return true;
+}
+function commit(fn, key, opts = {}) {
+  if (key !== "yaml") S.yamlBad = false; // zmiana z formularza wygrywa z niepoprawnym tekstem YAML
+  fn(S.spec);
+  histPush(null, key);
+  persist();
+  refresh(opts);
+}
+/* Każdy dokument (plik, przykład, nowy graf) ma własną historię w localStorage pod kluczem HIST_KEY:<docKey>.
+   Otwarcie dokumentu wczytuje jego historię; jeśli treść różni się od ostatniego stanu w historii (plik zmieniono poza edytorem),
+   dopisujemy wpis „Otwarto…”. */
+const histStoreKey = k => `${HIST_KEY}:${k}`;
+function loadHist(key) {
+  try { const h0 = JSON.parse(localStorage.getItem(histStoreKey(key)) || "null"); if (h0 && Array.isArray(h0.tl) && h0.tl[h0.cur]) return h0; } catch (e) { /* brak */ }
+  return null;
+}
+function touchHistIndex(key, drop) {
+  // lista ostatnio używanych dokumentów; historie spoza 20 ostatnich usuwamy, żeby nie zapełnić pamięci przeglądarki
+  try {
+    let idx = JSON.parse(localStorage.getItem(HIST_KEY + "-index") || "[]").filter(k => k !== key && k !== drop);
+    if (key) idx.unshift(key);
+    idx.slice(20).forEach(k => localStorage.removeItem(histStoreKey(k)));
+    idx = idx.slice(0, 20);
+    if (drop) localStorage.removeItem(histStoreKey(drop));
+    localStorage.setItem(HIST_KEY + "-index", JSON.stringify(idx));
+  } catch (e) { /* bez indeksu */ }
+}
+function replaceSpec(newSpec, msg, label, docKey) {
+  S.spec = prep(newSpec); S.sel = { kind: "settings" }; S.draw = null; S.ck = null;
+  if (docKey && docKey !== S.docKey) {
+    S.docKey = docKey;
+    const h0 = loadHist(docKey);
+    if (h0) { S.tl = h0.tl; S.cur = h0.cur; histPush(label || msg || "Wczytano graf"); } // histPush nic nie robi, gdy treść się nie zmieniła
+    else histInit(label || msg || "Wczytano graf");
+  } else histPush(label || msg || "Wczytano graf");
+  S.msg = msg || "";
+  persist(); refresh();
+}
+function docName() {
+  const k = S.docKey || "";
+  if (k.startsWith("plik:")) return k.slice(5).split(/[\\/]/).pop();
+  if (k.startsWith("przyklad:")) return `przykład ${quote(EXAMPLES[k.slice(9)]?.title || k.slice(9))}`;
+  if (k.startsWith("nowy:") || k.startsWith("mermaid:")) return "nowy graf (niezapisany)";
+  return S.file || "bieżący graf";
+}
+function goTo(i) {
+  if (i < 0 || i >= S.tl.length || i === S.cur) return;
+  const dir = i < S.cur ? "Cofnięto" : "Ponowiono";
+  S.cur = i; S.spec = prep(JSON.parse(S.tl[i].s)); S.ck = null; S.yamlBad = false;
+  fixSel();
+  const e = S.tl[i];
+  S.msg = `${dir} do stanu z ${new Date(e.t).toLocaleTimeString("pl-PL")}: ${e.label}`;
+  persist(); refresh();
+}
+function undo() { goTo(S.cur - 1); }
+function redo() { goTo(S.cur + 1); }
+function fixSel() {
+  const s = S.sel;
+  if ((s.kind === "node" && !findNode(S.spec, s.id)) || (s.kind === "flow" && !findFlow(S.spec, s.id)) ||
+      (s.kind === "group" && !findGroup(S.spec, s.id)) || (s.kind === "note" && !S.spec.notes[s.idx])) S.sel = { kind: "settings" };
+  if (S.draw && !findFlow(S.spec, S.draw)) S.draw = null;
+}
+function persist() {
+  try {
+    const tabs = T.list.map((d, i) => { const x = i === T.i ? S : d; return { spec: x.spec, file: x.file, docKey: x.docKey, path: x.path || null, savedJson: x.savedJson }; });
+    localStorage.setItem(TABS_KEY, JSON.stringify({ i: T.i, tabs, t: Date.now() })); S.savedAt = new Date();
+  } catch (e) { S.savedAt = null; }
+  touchHistIndex(S.docKey);
+  // historia: próbujemy zapisać jak najwięcej ostatnich wpisów, w razie braku miejsca coraz mniej
+  for (const n of [120, 50, 15]) {
+    const from = Math.max(0, S.tl.length - n);
+    try { localStorage.setItem(histStoreKey(S.docKey), JSON.stringify({ tl: S.tl.slice(from), cur: S.cur - from })); break; }
+    catch (e) { try { localStorage.removeItem(histStoreKey(S.docKey)); } catch (e2) { /* brak dostępu */ } }
+  }
+}
+
+/* ---------- karty: kilka otwartych plików ----------
+   Aktywny dokument żyje w S (cały edytor czyta S), pozostałe karty trzymają kopię swoich pól w T.list.
+   Przełączenie karty: stash() odkłada pola z S do karty, unstash() wkłada pola wybranej karty do S. */
+const TABS_KEY = "flowgraph-editor-tabs";
+const DOC_FIELDS = ["spec", "sel", "draw", "drawBranch", "tl", "cur", "ck", "ct", "file", "handle", "savedJson", "docKey", "path", "diskText", "lastLocated"];
+const T = { list: [], i: 0 };
+const blankSpec = () => ({ title: "Nowy graf", direction: "LR", groups: [], nodes: [], flows: [], notes: [] });
+function stash() { const d = T.list[T.i] || (T.list[T.i] = {}); DOC_FIELDS.forEach(k => { d[k] = S[k]; }); }
+function unstash(i) { const d = T.list[i]; DOC_FIELDS.forEach(k => { S[k] = d[k]; }); T.i = i; S.yamlBad = false; S.ck = null; }
+function makeDoc(spec, docKey, extra = {}) {
+  const sp = prep(spec), json = JSON.stringify(sp);
+  const h0 = loadHist(docKey);
+  const hist = h0 && h0.tl[h0.cur].s === json ? { tl: h0.tl, cur: h0.cur } : { tl: [{ s: json, label: extra.label || "Nowy pusty graf", t: Date.now() }], cur: 0 };
+  return { spec: sp, sel: { kind: "settings" }, draw: null, drawBranch: false, ...hist, ck: null, ct: 0, file: null, handle: null,
+    savedJson: json, docKey, path: null, diskText: null, lastLocated: null, ...extra, label: undefined };
+}
+const tabDoc = i => i === T.i ? S : T.list[i];
+const isDirtyDoc = d => d.savedJson != null && d.savedJson !== JSON.stringify(d.spec);
+const isPristine = d => /^nowy:/.test(d.docKey || "") && !isDirtyDoc(d) && !d.spec.nodes.length && !d.spec.flows.length && d.tl.length <= 1;
+const findTab = key => T.list.findIndex((_, i) => tabDoc(i).docKey === key);
+function tabName(d) { return d.file || d.spec?.title || "Nowy graf"; }
+function afterSwitch() {
+  if (document.activeElement?.id === "yamlText") document.activeElement.blur(); // YAML aktywnej karty ma się przepisać
+  S.lastLocated = null;
+  if (TAURI) { invoke("watch_file", { path: S.path }).catch(() => {}); if (S.path) syncFromDisk(); }
+  persist(); refresh();
+}
+function activate(i) {
+  if (i === T.i || i < 0 || i >= T.list.length) return;
+  stash(); unstash(i); S.msg = ""; afterSwitch();
+  document.querySelector(`#tabs .ed-tab[data-i="${i}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+function newTab(spec, docKey) {
+  stash();
+  T.list.push(makeDoc(spec || blankSpec(), docKey || "nowy:" + Date.now()));
+  unstash(T.list.length - 1); afterSwitch();
+}
+/* Karta na dokument: otwarty już → przełącza na niego (zwraca "open"); inaczej nowa karta albo nietknięta pusta karta (zwraca "new"). */
+function tabFor(key) {
+  const j = key ? findTab(key) : -1;
+  if (j >= 0) { activate(j); return "open"; }
+  if (isPristine(S)) { touchHistIndex(null, S.docKey); return "reuse"; }
+  newTab(); return "new";
+}
+async function closeTab(i) {
+  if (i < 0 || i >= T.list.length) return false;
+  if (isDirtyDoc(tabDoc(i))) {
+    if (i !== T.i) activate(i);
+    if (!(await confirmDiscard("Zamknij"))) return false;
+    i = T.i;
+  }
+  stash();
+  T.list.splice(i, 1);
+  if (!T.list.length) T.list.push(makeDoc(blankSpec(), "nowy:" + Date.now()));
+  let cur = T.i;
+  if (i < cur) cur--; else if (i === cur) cur = Math.min(i, T.list.length - 1);
+  unstash(cur); S.msg = ""; afterSwitch();
+  return true;
+}
+function moveTab(from, to) {
+  if (from === to || from < 0 || to < 0) return;
+  stash();
+  const activeDoc = T.list[T.i];
+  const [d] = T.list.splice(from, 1); T.list.splice(to, 0, d);
+  T.i = T.list.indexOf(activeDoc);
+  persist(); renderTabs();
+}
+function renderTabs() {
+  const bar = $("#tabs"); if (!bar) return;
+  const hadFocus = bar.contains(document.activeElement);
+  bar.innerHTML = "";
+  T.list.forEach((_, i) => {
+    const d = tabDoc(i), on = i === T.i, dirty = isDirtyDoc(d);
+    const tip = (d.path || d.file || tabName(d)) + (dirty ? " (niezapisane zmiany)" : "");
+    const tab = h("div", { class: "ed-tab" + (dirty ? " dirty" : ""), role: "tab", "aria-selected": String(on), tabindex: on ? "0" : "-1", title: tip, "data-i": String(i) },
+      h("span", { class: "nm" }, tabName(d)),
+      h("button", { type: "button", class: "x", tabindex: "-1", "aria-label": `Zamknij kartę ${tabName(d)}`, title: dirty ? "Niezapisane zmiany. Zamknij kartę" : "Zamknij kartę" },
+        h("span", { class: "dot", "aria-hidden": "true" }, "●"), h("span", { class: "cl", "aria-hidden": "true" }, "✕")));
+    tab.addEventListener("click", e => { if (tabDragged) return; if (e.target.closest(".x")) { e.stopPropagation(); closeTab(i); } else activate(i); });
+    tab.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); closeTab(i); } }); // środkowy przycisk zamyka
+    tab.addEventListener("keydown", e => {
+      const k = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: T.list.length - 1 }[e.key];
+      if (k != null) { e.preventDefault(); activate(Math.max(0, Math.min(T.list.length - 1, k))); $("#tabs .ed-tab[aria-selected=true]")?.focus(); }
+      if (e.key === "Delete") { e.preventDefault(); closeTab(i); }
+    });
+    bar.append(tab);
+  });
+  bar.append(h("button", { type: "button", class: "ed-tab-add", title: "Nowa karta (pusty graf)", "aria-label": "Nowa karta", onclick: () => $("#bNew").click() }, "＋"));
+  if (hadFocus) bar.querySelector(".ed-tab[aria-selected=true]")?.focus();
+}
+/* Przeciąganie karty w poziomie zmienia kolejność (zdarzenia wskaźnika, bo w aplikacji okno przejmuje natywne przeciąganie plików). */
+let tabDragged = false;
+$("#tabs").addEventListener("pointerdown", e => {
+  const tab = e.target.closest(".ed-tab"); if (!tab || e.button !== 0 || e.target.closest(".x")) return;
+  const from = +tab.dataset.i, x0 = e.clientX;
+  let moving = false, to = from;
+  const tabs = () => [...$("#tabs").querySelectorAll(".ed-tab")];
+  const move = ev => {
+    if (!moving && Math.abs(ev.clientX - x0) < 6) return;
+    moving = true; try { tab.setPointerCapture(e.pointerId); } catch (err) { /* wskaźnik już puszczony */ }
+    const els = tabs(); els.forEach(el => el.classList.remove("drop-before", "drop-after"));
+    // miejsce wstawienia: pierwsza karta, której środek jest za kursorem
+    let k = els.findIndex(el => { const r = el.getBoundingClientRect(); return ev.clientX < r.left + r.width / 2; });
+    if (k < 0) { k = els.length; els[els.length - 1].classList.add("drop-after"); } else els[k].classList.add("drop-before");
+    to = k > from ? k - 1 : k;
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+    tabs().forEach(el => el.classList.remove("drop-before", "drop-after"));
+    if (!moving) return;
+    tabDragged = true; setTimeout(() => { tabDragged = false; }, 0); // bez kliknięcia po puszczeniu
+    moveTab(from, to);
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+});
+$("#tabs").addEventListener("dblclick", e => { if (e.target.id === "tabs") $("#bNew").click(); }); // dwuklik w puste miejsce paska
+
+/* ---------- podgląd ---------- */
+let page;
+function viewOpts() {
+  return {
+    selected: S.sel, pageTitle: `Edytor: ${S.spec.title || "graf"}`, showPins: true, noThemeSelect: true, noExport: true,
+    focus: S.sel.kind === "flow" ? { flow: S.sel.id } : S.sel.kind === "node" ? { node: S.sel.id } : null,
+    onNodeClick: id => { if (S.eatClick) { S.eatClick = false; return; } if (S.draw) drawAdd(id); else select({ kind: "node", id }); },
+    onFlowClick: id => { if (!S.draw) select({ kind: "flow", id }); },
+    onGroupClick: (id, how) => { if (S.eatClick) { S.eatClick = false; return; } if (!S.draw) select({ kind: "group", id }, { noScroll: how?.area }); },
+    onBackgroundClick: () => { if (S.eatClick) { S.eatClick = false; return; } if (!S.draw) select({ kind: "settings" }); },
+  };
+}
+function select(sel, { noScroll } = {}) {
+  S.sel = sel; refresh();
+  if (noScroll) return; // kliknięto w widoczny element grafu
+  // przewiń podgląd do zaznaczonego elementu, jeśli jest poza widokiem
+  const target = sel.kind === "node" ? document.querySelector(`#preview .fg-node[data-id="${CSS.escape(sel.id)}"]`)
+    : sel.kind === "flow" ? document.querySelector("#preview .fg-node.on")
+    : sel.kind === "group" ? document.querySelector(`#preview .fg-group-label[data-group="${CSS.escape(sel.id)}"]`) : null;
+  target?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+}
+
+function refresh(opts = {}) {
+  const res = page ? page.update(S.spec, viewOpts()) : null;
+  S.errors = res ? res.errors : [];
+  renderTree();
+  if (!opts.keepInsp) renderInsp();
+  if (!opts.keepYaml) renderYaml();
+  renderDrawBar();
+  renderStatus();
+  const key = JSON.stringify(S.sel);
+  if (key !== S.lastLocated) { S.lastLocated = key; locateYaml(); }
+  renderSaveState();
+  $("#bUndo").disabled = S.cur <= 0; $("#bRedo").disabled = S.cur >= S.tl.length - 1;
+  $("#bUndo").title = S.cur > 0 ? `Cofnij: ${S.tl[S.cur].label} (Cmd/Ctrl+Z)` : "Nie ma czego cofnąć";
+  $("#bRedo").title = S.cur < S.tl.length - 1 ? `Ponów: ${S.tl[S.cur + 1].label} (Cmd/Ctrl+Shift+Z)` : "Nie ma czego ponowić";
+  if (S.histOpen) renderHistory();
+  $("#preview").classList.toggle("drawing", !!S.draw);
+}
+
+/* ---------- budowanie DOM ---------- */
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "class") e.className = v;
+    else if (k === "style") e.setAttribute("style", v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  kids.flat().forEach(c => { if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c))); });
+  return e;
+}
+const colorCss = c => !c ? "" : FlowGraph.NAMED.includes(String(c).toLowerCase()) ? `var(--c-${String(c).toLowerCase()})` : (String(c).toLowerCase() === "grey" ? "var(--c-gray)" : String(c));
+
+function field(label, control, hint, id) {
+  control.id = control.id || id || ("in-" + slug(label));
+  return h("div", { class: "ed-field" }, h("label", { for: control.id }, label), control, hint ? h("div", { class: "ed-hint" }, hint) : null);
+}
+function textIn(value, onInput, o = {}) {
+  const el = h(o.area ? "textarea" : "input", { class: "ed-in" + (o.mono ? " mono" : ""), placeholder: o.ph || null, rows: o.rows || null, id: o.id || null, type: o.area ? null : "text", spellcheck: o.mono ? "false" : null });
+  el.value = value ?? "";
+  el.addEventListener(o.onChange ? "change" : "input", () => onInput(el.value, el));
+  return el;
+}
+/* Stylowana lista wyboru zamiast <select>: przycisk i lista w okienku (jedna otwarta naraz).
+   Opcje: [wartość, etykieta, ikona SVG (viewBox 28×20)?, dopisek po prawej?]. Wartości „__…” to akcje (np. nowy węzeł).
+   Długie listy mają pole szukania. Klawiatura: strzałki, Home/End, Enter, Esc, pierwsza litera. */
+let selPop = null;
+const selIcon = icon => `<svg class="ico" viewBox="0 0 28 20" width="22" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+function closeSelPop(focus) {
+  if (!selPop) return;
+  const { pop, btn } = selPop; selPop = null;
+  pop.remove(); btn.setAttribute("aria-expanded", "false");
+  document.removeEventListener("pointerdown", selOutside, true);
+  document.removeEventListener("scroll", selScroll, true);
+  window.removeEventListener("resize", selResize);
+  if (focus && btn.isConnected) btn.focus();
+}
+const selOutside = e => { if (selPop && !selPop.pop.contains(e.target) && !selPop.btn.contains(e.target)) closeSelPop(false); };
+const selScroll = e => { if (selPop && !selPop.pop.contains(e.target)) closeSelPop(false); };
+const selResize = () => closeSelPop(false);
+function selectIn(options, value, onChange, id, { placeholder, cls } = {}) {
+  const btn = h("button", { type: "button", class: "ed-in ed-sel-b" + (cls ? " " + cls : ""), id: id || null, "aria-haspopup": "listbox", "aria-expanded": "false" });
+  let cur = value ?? "";
+  const paint = () => {
+    const o = options.find(x => x[0] === cur);
+    btn.innerHTML = "";
+    if (o?.[2]) btn.insertAdjacentHTML("beforeend", selIcon(o[2]));
+    btn.append(h("span", { class: "lbl" + (o ? "" : " ph") }, o ? o[1] : placeholder || ""));
+    if (o?.[3]) btn.append(h("span", { class: "hint" }, o[3]));
+    btn.insertAdjacentHTML("beforeend", '<svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>');
+  };
+  Object.defineProperty(btn, "value", { get: () => cur, set: v => { cur = v ?? ""; paint(); } });
+  paint();
+  const choose = v => {
+    closeSelPop(true);
+    if (v === cur) return;
+    if (!String(v).startsWith("__")) { cur = v; paint(); }
+    onChange(v);
+  };
+  const open = () => {
+    closeSelPop(false);
+    const listId = `${id || "sel"}-list`;
+    const pop = h("div", { class: "ed-sel-pop", role: "listbox", id: listId, tabindex: "-1", "aria-label": btn.closest(".ed-field")?.querySelector("label, .ed-lab")?.textContent || null });
+    const filter = options.length > 8 ? h("input", { class: "ed-in ed-sel-f", type: "text", placeholder: "Szukaj…", "aria-label": "Szukaj na liście", "aria-controls": listId, autocomplete: "off", spellcheck: "false" }) : null;
+    const list = h("div", { class: "ed-sel-l" });
+    if (filter) pop.append(filter);
+    pop.append(list);
+    let items = [], act = -1;
+    const keyEl = filter || pop;
+    const setAct = i => {
+      if (!items.length) return;
+      act = Math.max(0, Math.min(items.length - 1, i));
+      items.forEach((it, k) => it.classList.toggle("on", k === act));
+      keyEl.setAttribute("aria-activedescendant", items[act].id);
+      items[act].scrollIntoView({ block: "nearest" });
+    };
+    const render = q => {
+      list.innerHTML = ""; items = [];
+      const qq = (q || "").trim().toLowerCase();
+      options.forEach(([v, l, icon, hint], k) => {
+        if (qq && !String(v).startsWith("__") && !`${l} ${hint || ""}`.toLowerCase().includes(qq)) return;
+        const it = h("div", { class: "ed-sel-o" + (String(v).startsWith("__") ? " action" : ""), role: "option", id: `${listId}-${k}`, "aria-selected": String(v === cur) });
+        if (icon) it.insertAdjacentHTML("beforeend", selIcon(icon));
+        it.append(h("span", { class: "lbl" }, l));
+        if (hint) it.append(h("span", { class: "hint" }, hint));
+        it.addEventListener("pointerdown", e => e.preventDefault()); // fokus zostaje w polu szukania
+        it.addEventListener("click", () => choose(v));
+        it.addEventListener("pointermove", () => { if (items[act] !== it) setAct(items.indexOf(it)); });
+        it._v = v;
+        list.append(it); items.push(it);
+      });
+      if (!items.length) list.append(h("div", { class: "ed-sel-none" }, "Nic nie pasuje"));
+      const sel = items.findIndex(it => it._v === cur);
+      setAct(qq ? items.findIndex(it => !String(it._v).startsWith("__")) : sel >= 0 ? sel : 0);
+    };
+    filter?.addEventListener("input", () => render(filter.value));
+    pop.addEventListener("keydown", e => {
+      const k = e.key;
+      if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); setAct(act + (k === "ArrowDown" ? 1 : -1)); }
+      else if ((k === "Home" || k === "End") && !filter) { e.preventDefault(); setAct(k === "Home" ? 0 : items.length - 1); }
+      else if (k === "PageDown" || k === "PageUp") { e.preventDefault(); setAct(act + (k === "PageDown" ? 8 : -8)); }
+      else if (k === "Enter") { e.preventDefault(); if (items[act]) choose(items[act]._v); }
+      else if (k === "Escape") { e.preventDefault(); closeSelPop(true); }
+      else if (k === "Tab") { closeSelPop(false); btn.focus(); return; }
+      else if (!filter && k.length === 1 && !e.metaKey && !e.ctrlKey) {
+        const ch = k.toLowerCase(), n = items.length;
+        for (let d = 1; d <= n; d++) { const it = items[(act + d) % n]; if (it.textContent.trim().toLowerCase().startsWith(ch)) { setAct((act + d) % n); break; } }
+      }
+      e.stopPropagation(); // skróty edytora (Delete, Esc) nie działają przy otwartej liście
+    });
+    (document.querySelector(".ed-app") || document.body).append(pop);
+    render("");
+    // pod przyciskiem, a gdy brakuje miejsca, nad nim; szerokość co najmniej taka jak przycisku
+    const r = btn.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, gap = 4;
+    const w = Math.min(Math.max(r.width, 220), vw - 16);
+    pop.style.width = w + "px";
+    pop.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + "px";
+    const below = vh - r.bottom - gap - 8, above = r.top - gap - 8;
+    const hNeed = pop.scrollHeight, up = hNeed > below && above > below;
+    pop.style.maxHeight = Math.min(340, up ? above : below) + "px";
+    if (up) pop.style.bottom = (vh - r.top + gap) + "px"; else pop.style.top = (r.bottom + gap) + "px";
+    btn.setAttribute("aria-expanded", "true"); btn.setAttribute("aria-controls", listId);
+    selPop = { pop, btn };
+    document.addEventListener("pointerdown", selOutside, true);
+    document.addEventListener("scroll", selScroll, true);
+    window.addEventListener("resize", selResize);
+    keyEl.focus();
+    if (items[act]) items[act].scrollIntoView({ block: "nearest" });
+  };
+  btn.addEventListener("click", () => { if (selPop?.btn === btn) closeSelPop(true); else open(); });
+  btn.addEventListener("keydown", e => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); open(); } });
+  return btn;
+}
+function setOrDel(o, k, v) { if (v === "" || v == null) delete o[k]; else o[k] = v; }
+
+function colorField(value, onChange, allowNone = true) {
+  const wrap = h("div", { class: "ed-colors", role: "group" });
+  const cur = value ? String(value).toLowerCase() : "";
+  if (allowNone) wrap.append(h("button", { type: "button", class: "ed-sw none", title: "Bez koloru", "aria-label": "Bez koloru", "aria-pressed": String(!cur), onclick: () => onChange("") }));
+  FlowGraph.NAMED.forEach(n => wrap.append(h("button", { type: "button", class: "ed-sw", style: `--c: var(--c-${n})`, title: n, "aria-label": n, "aria-pressed": String(cur === n || (n === "gray" && cur === "grey")), onclick: () => onChange(n) })));
+  docColors().forEach(n => wrap.append(h("button", { type: "button", class: "ed-sw doc", style: `--c: var(--fgc-${n})`, title: `${n} (kolor dokumentu)`, "aria-label": n, "aria-pressed": String(cur === n), onclick: () => onChange(n) })));
+  const custom = h("input", { type: "color", title: "Własny kolor", "aria-label": "Własny kolor" });
+  custom.value = /^#[0-9a-f]{6}$/.test(cur) ? cur : docColorHex(cur) || "#888888";
+  custom.addEventListener("change", () => onChange(custom.value));
+  // „＋” zapisuje wybrany kolor w palecie dokumentu i od razu go używa (jeden wpis w historii)
+  const save = h("button", { type: "button", class: "ed-sw add", title: "Dodaj ten kolor do kolorów dokumentu", "aria-label": "Dodaj kolor do kolorów dokumentu",
+    onclick: () => { const name = addDocColor(S.spec, custom.value); onChange(name); } }, "＋");
+  wrap.append(custom, save);
+  return wrap;
+}
+
+/* ---------- kolory dokumentu (sekcja colors) ---------- */
+const COLOR_RE = /^[a-z][a-z0-9-]*$/, HEX6 = /^#[0-9a-f]{6}$/;
+const docColors = () => isObj(S.spec.colors) ? Object.keys(S.spec.colors).filter(k => COLOR_RE.test(k) && !FlowGraph.NAMED.includes(k)) : [];
+function docColorHex(name) {
+  const v = isObj(S.spec.colors) ? S.spec.colors[name] : null;
+  const l = isObj(v) ? v.light : v;
+  return typeof l === "string" && HEX6.test(l.toLowerCase()) ? l.toLowerCase() : null;
+}
+function addDocColor(sp, hex) {
+  sp.colors = isObj(sp.colors) ? sp.colors : {};
+  const found = Object.entries(sp.colors).find(([, v]) => String(isObj(v) ? v.light : v).toLowerCase() === hex.toLowerCase());
+  if (found) return found[0];
+  let i = 1; while (sp.colors[`kolor-${i}`] != null) i++;
+  sp.colors[`kolor-${i}`] = hex.toLowerCase();
+  return `kolor-${i}`;
+}
+const colorUsers = sp => [...sp.nodes, ...sp.groups, ...sp.flows].filter(isObj);
+function renameDocColor(sp, a, b) {
+  sp.colors = Object.fromEntries(Object.entries(sp.colors).map(([k, v]) => [k === a ? b : k, v])); // ta sama kolejność
+  colorUsers(sp).forEach(x => { if (String(x.color ?? "").toLowerCase() === a) x.color = b; });
+}
+function removeDocColor(sp, name) {
+  const hex = docColorHex(name) || "";
+  delete sp.colors[name];
+  colorUsers(sp).forEach(x => { if (String(x.color ?? "").toLowerCase() === name) { if (hex) x.color = hex; else delete x.color; } });
+}
+function docColorsEditor() {
+  const sp = S.spec, names = docColors();
+  const rows = names.map(name => {
+    const v = sp.colors[name], light = docColorHex(name) || "#888888";
+    const dark = isObj(v) && typeof v.dark === "string" && HEX6.test(v.dark.toLowerCase()) ? v.dark.toLowerCase() : null;
+    const uses = colorUsers(sp).filter(x => String(x.color ?? "").toLowerCase() === name).length;
+    const nameIn = h("input", { class: "ed-in mono", value: name, "aria-label": "Nazwa koloru", spellcheck: "false" });
+    nameIn.addEventListener("change", () => {
+      const b = nameIn.value.trim().toLowerCase();
+      if (b === name) return;
+      if (!COLOR_RE.test(b)) { S.msg = "Nazwa koloru: małe litery, cyfry i myślnik, na początku litera."; nameIn.value = name; return refresh(); }
+      if (FlowGraph.NAMED.includes(b) || b === "grey" || sp.colors[b] != null) { S.msg = `Nazwa „${b}” jest już zajęta.`; nameIn.value = name; return refresh(); }
+      commit(x => renameDocColor(x, name, b));
+    });
+    const pick = (val, title, onSet) => { const i = h("input", { type: "color", title, "aria-label": `${title}: ${name}` }); i.value = val; i.addEventListener("change", () => onSet(i.value)); return i; };
+    const set = (l, d) => commit(x => { x.colors[name] = d && d !== l ? { light: l, dark: d } : l; });
+    return h("div", { class: "ed-dcolor", "data-color": name },
+      h("span", { class: "ed-sw doc", style: `--c: var(--fgc-${name})`, "aria-hidden": "true" }),
+      nameIn,
+      pick(light, "Jasny motyw", l => set(l, dark)),
+      pick(dark || light, "Ciemny motyw", d => set(light, d)),
+      h("span", { class: "ed-hint", title: "Ile elementów używa tego koloru" }, `×${uses}`),
+      h("button", { type: "button", class: "ed-btn small icon", title: uses ? "Usuń z palety (elementy zachowają kolor jako #hex)" : "Usuń z palety", "aria-label": `Usuń kolor ${name}`,
+        onclick: () => commit(x => removeDocColor(x, name)) }, "✕"));
+  });
+  return h("div", { class: "ed-field", id: "doc-colors" }, h("span", { class: "ed-lab" }, "Kolory dokumentu"),
+    rows.length ? h("div", { class: "ed-dcolors" }, rows) : h("div", { class: "ed-hint" }, "Własne nazwane kolory, dostępne obok wbudowanych w każdym wyborze koloru."),
+    rows.length ? h("div", { class: "ed-hint" }, "Kolumny: nazwa, kolor w jasnym motywie, kolor w ciemnym motywie. Zmiana nazwy aktualizuje wszystkie elementy.") : null,
+    h("div", { class: "ed-actions-row" }, h("button", { type: "button", class: "ed-btn small", id: "bAddColor", onclick: () => commit(x => { addDocColor(x, nextFreeHex(x)); }) }, "＋ Dodaj kolor")));
+}
+function nextFreeHex(sp) { // propozycja, której jeszcze nie ma w palecie
+  const pool = ["#e0559a", "#3aa0c8", "#8a6d3b", "#5c7cfa", "#20c997", "#f08c00", "#868e96", "#a61e4d"];
+  const taken = new Set(Object.values(sp.colors || {}).map(v => String(isObj(v) ? v.light : v).toLowerCase()));
+  return pool.find(c => !taken.has(c)) || "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
+}
+
+/* Typ grota: przyciski z podglądem kształtu (ten sam rysunek co marker na grafie). */
+const ARROW_UI = [
+  ["triangle", "Strzałka", '<path d="M2 12h14"/><path d="M14 7.5 22 12l-8 4.5z" class="f"/>'],
+  ["open", "Otwarta", '<path d="M2 12h19"/><path d="M15 7l6.5 5-6.5 5"/>'],
+  ["circle", "Kółko", '<path d="M2 12h16.5"/><circle cx="18.5" cy="12" r="3.5" class="f"/>'],
+  ["diamond", "Romb", '<path d="M2 12h15"/><path d="M12 12l5-3.6 5 3.6-5 3.6z" class="f"/>'],
+  ["cross", "Krzyżyk", '<path d="M2 12h15.5"/><path d="M12.5 8.5l6 7M18.5 8.5l-6 7"/>'],
+  ["none", "Brak", '<path d="M2 12h20"/>']];
+/* Wspólny wybór z podglądem: przyciski-radio z ikoną SVG, kolor zaznaczenia = kolor przepływu. */
+function previewPicker(label, items, value, color, attr, onChange, { id, w = 30 } = {}) {
+  const wrap = h("div", { class: "ed-arrows", role: "radiogroup", "aria-label": label, ...(id ? { id } : {}) });
+  items.forEach(([v, name, icon, text]) => {
+    const b = h("button", { type: "button", class: "ed-arrow" + (text ? " txt" : ""), role: "radio", "aria-checked": String(value === v), "aria-label": name, title: name, ["data-" + attr]: v, onclick: () => onChange(v) });
+    if (text) b.textContent = text; // opcja opisana słowem (np. „jak graf”), bez ikony
+    else b.innerHTML = `<svg viewBox="0 0 ${w * 0.8} 24" width="${w}" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+    wrap.append(b);
+  });
+  if (color) wrap.style.setProperty("--c", color);
+  return h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, label), wrap);
+}
+function arrowField(value, color, onChange) {
+  return previewPicker("Grot strzałki", ARROW_UI, value, color, "arrow", onChange);
+}
+/* Styl linii: podgląd rysowany tak samo jak na grafie (te same proporcje kresek i kropek). */
+function styleField(value, color, width, onChange) {
+  const sw = Math.min(Math.max(+width || 2.5, 1.5), 4);
+  const line = dash => `<path d="M3 12h42" stroke-width="${sw}"${dash}/>`;
+  const items = [
+    ["solid", "Ciągła", line("")],
+    ["dashed", "Kreskowana", line(` stroke-dasharray="${sw * 3 + 3} ${sw * 2 + 3}" stroke-linecap="butt"`)],
+    ["dotted", "Kropkowana", line(` stroke-dasharray="0.1 ${sw * 2 + 3}"`)]];
+  return previewPicker("Styl linii", items, value, color, "style", onChange, { id: "in-style", w: 60 });
+}
+
+/* Kształty węzła z podglądem (jak na grafie: prostokąt, kapsuła, przerywany, walec). */
+const SHAPE_UI = [
+  ["box", "Prostokąt", '<rect x="3" y="4" width="22" height="12" rx="2.5"/>'],
+  ["pill", "Kapsuła (start/koniec)", '<rect x="3" y="4" width="22" height="12" rx="6"/>'],
+  ["ghost", "Zewnętrzny (przerywany)", '<rect x="3" y="4" width="22" height="12" rx="2.5" stroke-dasharray="3 2.4"/>'],
+  ["db", "Magazyn danych", '<path d="M6 5.5v9c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-9"/><ellipse cx="14" cy="5.5" rx="8" ry="2.5"/>']];
+/* Kierunek grafu: cztery ikony (węzeł i strzałka w stronę przepływu), ta sama ikona obrócona. */
+const dirIcon = deg => `<g transform="rotate(${deg} 12 12)"><rect x="2" y="8" width="7" height="8" rx="2"/><path d="M9 12h11"/><path d="M16.5 8.5 20 12l-3.5 3.5"/></g>`;
+const DIR_UI = [["LR", "Od lewej do prawej", dirIcon(0)], ["TB", "Z góry na dół", dirIcon(90)], ["RL", "Od prawej do lewej", dirIcon(180)], ["BT", "Z dołu do góry", dirIcon(270)]];
+function directionField(value, onChange) {
+  return previewPicker("Kierunek grafu", DIR_UI, value, null, "dir", onChange, { id: "in-direction", w: 30 });
+}
+function nodeOptions() {
+  const opts = [];
+  S.spec.nodes.forEach(n => opts.push([String(n.id), n.label || n.id, null, String(n.id)]));
+  (page?.doc?.nodes || []).filter(n => n.auto && !findNode(S.spec, n.id)).forEach(n => opts.push([n.id, n.id, null, "niezdefiniowany"]));
+  opts.push(["__new", "＋ Nowy węzeł…"]);
+  return opts;
+}
+function newNode(label = "Nowy węzeł", extra = {}) {
+  const id = uniqId(label, allIds(S.spec));
+  S.spec.nodes.push({ id, label, ...extra });
+  return id;
+}
+function nodeSelect(value, onChange, placeholder, id, cls) {
+  return selectIn(nodeOptions(), value, v => {
+    if (v === "__new") v = newNode();
+    if (v) onChange(v);
+  }, id, { placeholder: placeholder || "Wybierz węzeł…", cls });
+}
+
+function dangerBtn(label, action) {
+  let armed = false, t;
+  const b = h("button", { type: "button", class: "ed-btn danger" }, label);
+  b.addEventListener("click", () => {
+    if (!armed) { armed = true; b.classList.add("armed"); b.textContent = "Kliknij ponownie, aby potwierdzić"; t = setTimeout(() => { armed = false; b.classList.remove("armed"); b.textContent = label; }, 3000); return; }
+    clearTimeout(t); action();
+  });
+  return b;
+}
+
+/* ---------- panel struktury ---------- */
+function row(sel, label, idText, mark, extraClass) {
+  const cur = S.sel.kind === sel.kind && (sel.id != null ? S.sel.id === sel.id : sel.idx != null ? S.sel.idx === sel.idx : true);
+  return h("button", { type: "button", class: "ed-row" + (extraClass ? " " + extraClass : ""), "aria-current": String(cur), onclick: () => select(sel) },
+    mark, h("span", { class: "lbl" }, label), idText ? h("span", { class: "id" }, idText) : null);
+}
+/* Sekcje panelu struktury. Z kluczem (key) sekcję można zwinąć; stan zapamiętuje przeglądarka, domyślnie wszystko rozwinięte. */
+const COLLAPSE_KEY = "flowgraph-editor-collapsed";
+const SECTION_OF = { flow: "flows", node: "nodes", group: "groups", note: "notes" }; // rodzaj zaznaczenia → sekcja drzewa
+const collapsed = (() => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]")); } catch (e) { return new Set(); } })();
+function toggleSection(key, keyboard) {
+  if (collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
+  try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed])); } catch (e) { /* bez zapamiętania */ }
+  renderTree();
+  if (keyboard) $(`#tree .ed-sec[data-key="${key}"] .ed-sec-t`)?.focus(); // po kliknięciu myszą bez obwódki fokusu
+}
+function chevron() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 12 12"); svg.setAttribute("class", "chev"); svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = '<path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+  return svg;
+}
+function section(title, onAdd, rows, emptyText, key) {
+  const closed = !!key && collapsed.has(key), bodyId = key ? `sec-${key}` : null;
+  const hasSel = closed && SECTION_OF[S.sel.kind] === key;
+  const head = key
+    ? h("button", { type: "button", class: "ed-sec-t", "aria-expanded": String(!closed), "aria-controls": bodyId, title: hasSel ? "Tu jest zaznaczony element. Rozwiń sekcję" : closed ? "Rozwiń sekcję" : "Zwiń sekcję", onclick: e => toggleSection(key, e.detail === 0) },
+        chevron(), title)
+    : h("span", {}, title);
+  const body = h("div", { class: "ed-sec-b", id: bodyId }, ...(rows.length ? rows : [h("div", { class: "ed-empty" }, emptyText)]));
+  if (closed) body.hidden = true;
+  return h("div", { class: "ed-sec" + (closed ? " collapsed" : "") + (hasSel ? " has-sel" : ""), "data-key": key || null },
+    h("div", { class: "ed-sec-h" }, head, onAdd ? h("button", { type: "button", class: "ed-btn small", onclick: onAdd, title: "Dodaj", "aria-label": `Dodaj: ${title.replace(/ \(\d+\)$/, "")}` }, "＋") : null),
+    body);
+}
+function renderTree() {
+  const t = $("#tree"); t.innerHTML = "";
+  const sp = S.spec;
+  t.append(section("Graf", null, [row({ kind: "settings" }, sp.title || "Bez tytułu", null, h("span", { class: "ed-dot" }))], ""));
+
+  t.append(section(`Przepływy (${sp.flows.length})`, addFlow, sp.flows.map((f, i) => {
+    const col = colorCss(f.color) || page?.doc?.flows.find(x => x.id === String(f.id))?.color;
+    return row({ kind: "flow", id: String(f.id) }, f.label || f.id, f.id, h("span", { class: "ed-line", style: `--c:${col || "var(--fg-muted)"}` }));
+  }), "Brak przepływów. Dodaj pierwszy i kliknij węzły po kolei.", "flows"));
+
+  const rowsNodes = [];
+  const byGroup = new Map();
+  sp.nodes.forEach(n => { const g = n.group ? String(n.group) : ""; if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push(n); });
+  const nodeRow = (n, sub) => row({ kind: "node", id: String(n.id) }, n.label || n.id, n.id, h("span", { class: "ed-dot", style: n.color ? `--c:${colorCss(n.color)}` : "" }), sub ? "sub" : "");
+  (byGroup.get("") || []).forEach(n => rowsNodes.push(nodeRow(n, false)));
+  sp.groups.forEach(g => (byGroup.get(String(g.id)) || []).forEach((n, i) => {
+    if (i === 0) rowsNodes.push(h("div", { class: "ed-empty", style: "padding-top:4px" }, g.label || g.id));
+    rowsNodes.push(nodeRow(n, true));
+  }));
+  const autos = (page?.doc?.nodes || []).filter(n => n.auto);
+  autos.forEach(n => rowsNodes.push(h("button", { type: "button", class: "ed-row", title: "Węzeł użyty w przepływie, ale niezdefiniowany. Kliknij, aby go zdefiniować.",
+    onclick: () => commit(s => { s.nodes.push({ id: n.id, label: n.id }); S.sel = { kind: "node", id: n.id }; }) },
+    h("span", { class: "ed-dot", style: "border-style:dashed" }), h("span", { class: "lbl" }, n.id), h("span", { class: "id" }, "zdefiniuj"))));
+  t.append(section(`Węzły (${sp.nodes.length})`, addNode, rowsNodes, "Brak węzłów.", "nodes"));
+
+  t.append(section(`Grupy (${sp.groups.length})`, addGroup, sp.groups.map(g =>
+    row({ kind: "group", id: String(g.id) }, g.label || g.id, g.id, h("span", { class: "ed-dot", style: g.color ? `--c:${colorCss(g.color)}` : "border-style:dashed" }))), "Grupy obrysowują węzły ramką.", "groups"));
+
+  t.append(section(`Notatki (${sp.notes.length})`, addNote, sp.notes.map((n, i) =>
+    row({ kind: "note", idx: i }, (isObj(n) ? n.title || n.text : n) || "Notatka", null, h("span", { class: "ed-dot" }))), "Notatki pojawiają się pod grafem.", "notes"));
+  requestAnimationFrame(updateSeek);
+}
+/* Strzałka w górę albo w dół, gdy zaznaczony wiersz (albo wyróżniona zwinięta sekcja) jest przewinięty poza widok. */
+// tylko wiersz widoczny: w zwiniętej sekcji wiersz jest ukryty (pozycja 0), wtedy celem jest wyróżniony nagłówek
+const seekTarget = () => [...document.querySelectorAll('#tree .ed-row[aria-current="true"]')].find(e => e.getClientRects().length)
+  || $("#tree .ed-sec.has-sel .ed-sec-h");
+function updateSeek() {
+  const side = $(".ed-side"), el = seekTarget();
+  let dir = "";
+  if (el && side.offsetParent) {
+    const top = $(".ed-side-h").getBoundingClientRect().bottom, bottom = side.getBoundingClientRect().bottom, r = el.getBoundingClientRect();
+    dir = r.bottom <= top + 4 ? "up" : r.top >= bottom - 4 ? "down" : "";
+  }
+  $("#seekUp").hidden = dir !== "up"; $("#seekDown").hidden = dir !== "down";
+}
+$(".ed-side").addEventListener("scroll", () => requestAnimationFrame(updateSeek), { passive: true });
+new ResizeObserver(() => updateSeek()).observe($(".ed-side"));
+for (const b of [$("#seekUp"), $("#seekDown")]) b.addEventListener("click", () => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  seekTarget()?.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+});
+
+/* ---------- dodawanie ---------- */
+function addNode() {
+  commit(sp => {
+    const extra = S.sel.kind === "group" ? { group: S.sel.id } : {};
+    const id = newNode("Nowy węzeł", extra);
+    S.sel = { kind: "node", id };
+  });
+  focusFirst();
+}
+function addFlow(startNode) {
+  commit(sp => {
+    const id = uniqId("przeplyw", allIds(sp));
+    sp.flows.push({ id, label: "Nowy przepływ", path: typeof startNode === "string" ? [startNode] : [] });
+    S.sel = { kind: "flow", id }; S.draw = id; S.drawBranch = false;
+  });
+  S.msg = "Klikaj węzły na grafie po kolei, aby zbudować ścieżkę przepływu.";
+  renderStatus();
+}
+function addGroup() {
+  commit(sp => { const id = uniqId("grupa", allIds(sp)); sp.groups.push({ id, label: "Nowa grupa" }); S.sel = { kind: "group", id }; });
+  focusFirst();
+}
+function addNote() {
+  commit(sp => { sp.notes.push({ title: "Nowa notatka", text: "" }); S.sel = { kind: "note", idx: sp.notes.length - 1 }; });
+  focusFirst();
+}
+function focusFirst() { const el = $("#insp input, #insp textarea"); if (el) { el.focus(); el.select?.(); } }
+
+/* ---------- rysowanie przepływu kliknięciami ---------- */
+function drawAdd(id) {
+  const fl = findFlow(S.spec, S.draw); if (!fl) return;
+  commit(sp => {
+    const f = findFlow(sp, S.draw); f.path = Array.isArray(f.path) ? f.path : [];
+    if (S.drawBranch && f.path.length) {
+      const last = f.path[f.path.length - 1];
+      if (Array.isArray(last)) last.push(id); else f.path[f.path.length - 1] = [last, id];
+    } else f.path.push(id);
+  });
+  const n = findNode(S.spec, id);
+  S.msg = S.drawBranch ? `Dodano gałąź: ${n?.label || id}.` : `Dodano krok: ${n?.label || id}.`;
+  renderStatus();
+}
+function renderDrawBar() {
+  const bar = $("#drawBar"); bar.innerHTML = "";
+  if (!S.draw) return;
+  const f = page?.doc?.flows.find(x => x.id === S.draw);
+  const cb = h("input", { type: "checkbox", id: "drawBranch" }); cb.checked = S.drawBranch;
+  cb.addEventListener("change", () => { S.drawBranch = cb.checked; });
+  bar.append(h("div", { class: "ed-draw", style: `--c:${f?.color || "var(--fg-sel)"}` },
+    h("span", {}, h("b", {}, "Rysowanie: "), f?.label || S.draw, ". Klikaj węzły po kolei."),
+    h("label", { title: "Kliknięty węzeł zostanie dodany jako równoległa gałąź ostatniego kroku. Następny zwykły krok połączy wszystkie gałęzie." }, cb, "jako gałąź ostatniego kroku"),
+    h("button", { type: "button", class: "ed-btn small", onclick: () => { S.draw = null; S.msg = ""; refresh(); } }, "Gotowe (Esc)")));
+}
+
+/* ---------- wymuszone pozycje ---------- */
+const SNAP = 10;
+const snap = v => Math.round(v / SNAP) * SNAP;
+function currentPos(id) { const q = page?.layout?.pos?.[id]; return q ? [Math.round(q.x), Math.round(q.y)] : null; }
+function pinAll(on) {
+  commit(sp => sp.nodes.forEach(n => {
+    if (!on) { delete n.pos; return; }
+    if (!n.pos) { const p = currentPos(String(n.id)); if (p) n.pos = p; }
+  }));
+  S.msg = on ? "Przypięto wszystkie węzły w obecnych miejscach." : "Wszystkie węzły wróciły do automatycznego układu.";
+  renderStatus();
+}
+// Autorozmieszczenie jednej grupy (z podgrupami). Wynik ląduje w miejscu, gdzie grupa była dotąd,
+// a jej węzły zostają przypięte, więc reszta ręcznego układu się nie zmienia.
+function groupDescendants(id) {
+  const out = new Set([id]); let grew = true;
+  while (grew) { grew = false; S.spec.groups.forEach(x => { if (x.parent && out.has(String(x.parent)) && !out.has(String(x.id))) { out.add(String(x.id)); grew = true; } }); }
+  return out;
+}
+function arrangeGroup(id, direction) {
+  const groups = groupDescendants(id);
+  const ids = S.spec.nodes.filter(n => n.group != null && groups.has(String(n.group))).map(n => String(n.id));
+  const L = page?.layout?.pos;
+  if (!ids.length || !L) { S.msg = "Grupa nie ma węzłów do rozmieszczenia."; renderStatus(); return; }
+  const sizes = {}; let ox = Infinity, oy = Infinity;
+  ids.forEach(n => { const q = L[n]; sizes[n] = { w: q.w, h: q.h }; ox = Math.min(ox, q.x - q.w / 2); oy = Math.min(oy, q.y - q.h / 2); });
+  const res = FlowGraph.layoutSubset(page.doc, { nodeIds: ids, subGroups: [...groups].filter(g => g !== id), direction: direction || page.doc.direction, sizes });
+  commit(sp => ids.forEach(n => { const r = res[n]; findNode(sp, n).pos = [snap(ox + r.x), snap(oy + r.y)]; }));
+  const label = findGroup(S.spec, id)?.label || id;
+  S.msg = `Rozmieszczono grupę „${label}” (${ids.length} węzłów). Jej węzły są przypięte; ⌘Z cofa.`;
+  renderStatus();
+}
+function arrangeAll() {
+  const pinned = S.spec.nodes.filter(n => n.pos != null).length;
+  if (!pinned) { S.msg = "Cały graf jest już rozmieszczony automatycznie."; renderStatus(); return; }
+  commit(sp => sp.nodes.forEach(n => { delete n.pos; }));
+  S.msg = `Rozmieszczono cały graf automatycznie (odpięto ${pinned} węzłów). ⌘Z cofa.`;
+  renderStatus();
+}
+
+// Przeciąganie węzła na podglądzie ustawia jego pozycję (pos = środek węzła).
+// Graf przerysowuje się na żywo (linie, grupy, reszta układu), a do historii trafia tylko pozycja po puszczeniu.
+// Na czas przeciągania skala i początek sceny są zamrożone (holdScale, anchor), więc pozycja = start + ruch kursora / skala,
+// a reszta grafu stoi w miejscu. Dopiero wyjście węzła poza lewą/górną krawędź poszerza scenę.
+$("#preview").addEventListener("pointerdown", e => {
+  if (S.draw || e.button !== 0) return;
+  const el0 = e.target.closest(".fg-node"); if (!el0) return;
+  const id = el0.dataset.id;
+  if (!findNode(S.spec, id)) return; // węzłów niezdefiniowanych nie da się przypiąć
+  e.preventDefault();
+  const nodeEl = () => document.querySelector(`#preview .fg-node[data-id="${CSS.escape(id)}"]`);
+  const start = { x: e.clientX, y: e.clientY }, sc = page.scale;
+  const q0 = page.layout.pos[id], anchor = { x0: page.layout.x0, y0: page.layout.y0 };
+  let moved = false, ptr = start, raf = 0, pos = [snap(q0.x), snap(q0.y)];
+  const draft = clone(S.spec), dn = findNode(draft, id);
+  const frame = () => {
+    raf = 0;
+    const nx = snap(q0.x + (ptr.x - start.x) / sc), ny = snap(q0.y + (ptr.y - start.y) / sc);
+    if (nx === pos[0] && ny === pos[1] && dn.pos) return;
+    pos = [nx, ny]; dn.pos = [nx, ny];
+    page.update(draft, { ...viewOpts(), selected: { kind: "node", id }, focus: { node: id }, anchor, holdScale: true });
+    nodeEl()?.classList.add("fg-dragging");
+    S.msg = `Przesuwanie „${dn.label || id}”: ${nx}, ${ny}`; renderStatus();
+  };
+  const move = ev => {
+    ptr = { x: ev.clientX, y: ev.clientY };
+    if (!moved) {
+      if (Math.hypot(ptr.x - start.x, ptr.y - start.y) < 4) return;
+      moved = true; $("#preview").classList.add("fg-node-drag"); nodeEl()?.classList.add("fg-dragging");
+    }
+    if (!raf) raf = requestAnimationFrame(frame);
+  };
+  const up = ev => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    $("#preview").classList.remove("fg-node-drag");
+    if (!moved) return;
+    S.eatClick = true; setTimeout(() => { S.eatClick = false; }, 0); // pochłania tylko kliknięcie wysłane zaraz po puszczeniu
+    if (ev.type === "pointercancel") { S.msg = "Przeciąganie przerwane."; refresh(); return; }
+    ptr = { x: ev.clientX, y: ev.clientY }; frame();
+    const [nx, ny] = pos;
+    commit(sp => { findNode(sp, id).pos = [nx, ny]; });
+    S.sel = { kind: "node", id }; S.msg = `Przypięto „${findNode(S.spec, id)?.label || id}” w punkcie ${nx}, ${ny}.`; refresh();
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+});
+
+/* ---------- inspektor ---------- */
+const AUTO_ID = /^(nowy-wezel|przeplyw|grupa)(-\d+)?$/;
+function labelField(cur, id, kind, onInput) {
+  const inp = textIn(cur, onInput, { id: "in-label" });
+  inp.addEventListener("change", () => {
+    if (!AUTO_ID.test(id) || !inp.value.trim()) return;
+    const nid2 = uniqId(inp.value, allIds(S.spec).filter(x => String(x) !== id));
+    if (nid2 === id) return;
+    commit(sp => {
+      if (kind === "node") renameNode(sp, id, nid2);
+      else if (kind === "group") renameGroup(sp, id, nid2);
+      else { findFlow(sp, id).id = nid2; if (S.draw === id) S.draw = nid2; }
+    });
+    S.sel = { kind, id: nid2 }; refresh();
+  });
+  return field("Nazwa", inp);
+}
+function renderInsp() {
+  const box = $("#insp"); box.innerHTML = "";
+  const s = S.sel;
+  if (s.kind === "node") return inspNode(box, findNode(S.spec, s.id));
+  if (s.kind === "flow") return inspFlow(box, findFlow(S.spec, s.id));
+  if (s.kind === "group") return inspGroup(box, findGroup(S.spec, s.id));
+  if (s.kind === "note") return inspNote(box, s.idx);
+  inspSettings(box);
+}
+
+function idField(cur, kind, onRename) {
+  const inp = textIn(cur, (v, el) => {
+    v = v.trim();
+    if (!v || (v !== cur && allIds(S.spec).map(String).includes(v))) { el.classList.add("bad"); S.msg = v ? `Id „${v}” jest już zajęte.` : "Id nie może być puste."; renderStatus(); el.value = cur; return; }
+    el.classList.remove("bad");
+    if (v !== cur) onRename(v);
+  }, { mono: true, onChange: true, id: "in-id" });
+  return field("Id", inp, `Używane w YAML i w ścieżkach przepływów. Zmiana aktualizuje wszystkie odwołania.`);
+}
+
+function inspSettings(box) {
+  const sp = S.spec;
+  box.append(h("h2", {}, "Graf"));
+  box.append(field("Tytuł", textIn(sp.title, v => commit(x => { x.title = v; }, "title", { keepInsp: true }), { id: "in-title" })));
+  box.append(field("Opis pod tytułem", textIn(sp.subtitle, v => commit(x => setOrDel(x, "subtitle", v), "subtitle", { keepInsp: true }), { area: true, rows: 3, id: "in-subtitle" })));
+  box.append(directionField(String(sp.direction || "LR").toUpperCase(), v => commit(x => { x.direction = v; })));
+  box.append(docColorsEditor());
+  const d = page?.doc;
+  box.append(h("div", { class: "ed-hint" }, `${sp.nodes.length} węzłów, ${sp.flows.length} przepływów, ${sp.groups.length} grup, ${d ? d.segments.length : 0} odcinków na grafie.`));
+  const pinnedCount = sp.nodes.filter(n => n.pos != null).length;
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Rozmieszczenie"),
+    h("div", { class: "ed-hint" }, pinnedCount ? `Przypięte ręcznie: ${pinnedCount} z ${sp.nodes.length}. Pozostałe układa algorytm.` : "Cały graf układa algorytm. Przeciągnij węzeł, żeby go przypiąć."),
+    h("div", { class: "ed-actions-row" },
+      h("button", { type: "button", class: "ed-btn primary", disabled: !pinnedCount, onclick: arrangeAll, title: "Odpina wszystkie węzły, więc cały graf układa się od nowa" }, "⟲ Rozmieść cały graf"),
+      h("button", { type: "button", class: "ed-btn small", disabled: pinnedCount === sp.nodes.length || !sp.nodes.length, onclick: () => pinAll(true), title: "Zamraża obecny układ" }, "Przypnij wszystkie")),
+    sp.groups.length ? h("div", { class: "ed-hint" }, "Pojedynczą grupę rozmieścisz w jej ustawieniach (kliknij nazwę grupy na grafie).") : null));
+  box.append(h("div", { class: "ed-hint" }, "Kliknij węzeł, linię albo nazwę grupy na grafie, żeby edytować ich właściwości. Przeciągnij węzeł, żeby ustawić go ręcznie."));
+}
+
+function inspNode(box, n) {
+  if (!n) return inspSettings(box);
+  const id = String(n.id);
+  const upd = (fn, key, rer) => commit(sp => fn(findNode(sp, id)), key ? `n:${id}:${key}` : null, { keepInsp: !rer });
+  box.append(h("h2", {}, "Węzeł ", h("small", {}, id)));
+  box.append(labelField(n.label, id, "node", v => upd(x => setOrDel(x, "label", v), "label")));
+  box.append(field("Podpis", textIn(n.sub, v => upd(x => setOrDel(x, "sub", v), "sub"), { id: "in-sub", ph: "np. PostgreSQL" })));
+  box.append(idField(id, "node", v => { commit(sp => renameNode(sp, id, v)); S.sel = { kind: "node", id: v }; refresh(); }));
+  box.append(h("div", { class: "ed-grid2" },
+    field("Grupa", selectIn([["", "— bez grupy —"], ...S.spec.groups.map(g => [String(g.id), g.label || g.id])], n.group ? String(n.group) : "", v => upd(x => setOrDel(x, "group", v), null, true), "in-group")),
+    field("Kształt", selectIn(SHAPE_UI, n.shape || "box", v => upd(x => setOrDel(x, "shape", v === "box" ? "" : v), null, true), "in-shape"))));
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Kolor"), colorField(n.color, v => upd(x => setOrDel(x, "color", v), null, true))));
+  box.append(metaEditor(n.meta, obj => upd(x => setOrDel(x, "meta", Object.keys(obj).length ? obj : ""), "meta")));
+  box.append(field("Etykiety", textIn((n.items || []).join("\n"), v => upd(x => { const arr = v.split("\n").map(s => s.trim()).filter(Boolean); setOrDel(x, "items", arr.length ? arr : ""); }, "items"), { area: true, rows: 3, mono: true, id: "in-items" }), "Jedna na linię, np. prefiksy, wersje, porty."));
+
+  box.append(positionEditor(n, id));
+  const flows = S.spec.flows.filter(f => pathNodes(f.path).has(id));
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Przepływy przez ten węzeł"),
+    flows.length ? h("div", { class: "ed-flowlist" }, flows.map(f => h("button", { type: "button", class: "ed-btn small", onclick: () => select({ kind: "flow", id: String(f.id) }) },
+      h("span", { class: "ed-line", style: `--c:${page.doc.flows.find(x => x.id === String(f.id))?.color}` }), f.label || f.id)))
+      : h("div", { class: "ed-hint" }, "Żaden. Dodaj węzeł do przepływu w jego ustawieniach albo trybem rysowania.")));
+  box.append(h("div", { class: "ed-actions-row" },
+    h("button", { type: "button", class: "ed-btn", onclick: () => addFlow(id) }, "＋ Przepływ od tego węzła"),
+    dangerBtn("Usuń węzeł", () => { commit(sp => removeNode(sp, id)); S.sel = { kind: "settings" }; S.msg = "Usunięto węzeł i jego wystąpienia w przepływach."; refresh(); })));
+}
+
+function positionEditor(n, id) {
+  const pinned = Array.isArray(n.pos) || isObj(n.pos);
+  const pv = pinned ? (Array.isArray(n.pos) ? n.pos : [n.pos.x, n.pos.y]) : currentPos(id) || [0, 0];
+  const wrap = h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Pozycja"));
+  const num = (v, idx, label) => {
+    const i = h("input", { type: "number", step: String(SNAP), class: "ed-in mono", id: `in-pos-${label}`, "aria-label": `Pozycja ${label}` });
+    i.value = Math.round(Number(v) || 0);
+    i.addEventListener("change", () => { const val = Number(i.value); if (!isFinite(val)) return;
+      commit(sp => { const x = findNode(sp, id); const cur = Array.isArray(x.pos) ? x.pos.slice() : isObj(x.pos) ? [x.pos.x, x.pos.y] : (currentPos(id) || [0, 0]); cur[idx] = Math.round(val); x.pos = cur; }); });
+    return h("label", { class: "ed-check", for: `in-pos-${label}` }, label, i);
+  };
+  wrap.append(h("div", { class: "ed-hint" }, pinned
+    ? "Przypięty: zostaje w tym miejscu niezależnie od reszty grafu. Współrzędne to środek węzła."
+    : "Automatyczna: układa go algorytm. Przeciągnij węzeł na grafie albo wpisz współrzędne, żeby go przypiąć."));
+  wrap.append(h("div", { class: "ed-grid2" }, num(pv[0], 0, "X"), num(pv[1], 1, "Y")));
+  wrap.append(h("div", { class: "ed-actions-row" }, pinned
+    ? h("button", { type: "button", class: "ed-btn small", onclick: () => commit(sp => { delete findNode(sp, id).pos; }) }, "Odepnij (układ automatyczny)")
+    : h("button", { type: "button", class: "ed-btn small", onclick: () => commit(sp => { const p = currentPos(id); if (p) findNode(sp, id).pos = p; }) }, "Przypnij w obecnym miejscu")));
+  return wrap;
+}
+
+function metaEditor(meta, onChange) {
+  const rows = isObj(meta) ? Object.entries(meta).map(([k, v]) => [k, String(v ?? "")]) : [];
+  const wrap = h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Właściwości (klucz: wartość)"));
+  const grid = h("div", { class: "ed-kv" });
+  const emit = () => onChange(Object.fromEntries(rows.filter(r => r[0].trim()).map(r => [r[0].trim(), r[1]])));
+  const draw = () => {
+    grid.innerHTML = "";
+    rows.forEach((r, i) => {
+      grid.append(textIn(r[0], v => { r[0] = v; emit(); }, { ph: "klucz", id: `kv-k${i}` }), textIn(r[1], v => { r[1] = v; emit(); }, { ph: "wartość", mono: true, id: `kv-v${i}` }),
+        h("button", { type: "button", class: "ed-btn icon small", "aria-label": "Usuń właściwość", onclick: () => { rows.splice(i, 1); emit(); draw(); } }, "✕"));
+    });
+  };
+  draw();
+  wrap.append(grid, h("div", {}, h("button", { type: "button", class: "ed-btn small", onclick: () => { rows.push(["", ""]); draw(); grid.querySelector(`#kv-k${rows.length - 1}`)?.focus(); } }, "＋ Właściwość")));
+  return wrap;
+}
+
+/* --- ścieżka przepływu: kroki i rozgałęzienia --- */
+const isStep = x => typeof x === "string" || typeof x === "number" || (isObj(x) && x.node != null);
+const toN = x => isObj(x) ? { node: String(x.node), label: x.label ? String(x.label) : "" } : { node: String(x), label: "" };
+const fromN = n => n.label ? { node: n.node, label: n.label } : n.node;
+function toSteps(path) {
+  return (Array.isArray(path) ? path : []).map(it => {
+    if (Array.isArray(it)) {
+      const branches = [];
+      for (const br of it) {
+        const seq = Array.isArray(br) ? br : [br];
+        if (!seq.every(isStep)) return { t: "raw", v: it };
+        branches.push(seq.map(toN));
+      }
+      return { t: "p", branches };
+    }
+    return isStep(it) ? { t: "n", ...toN(it) } : { t: "raw", v: it };
+  });
+}
+function fromSteps(steps) {
+  const out = [];
+  for (const s of steps) {
+    if (s.t === "n") { if (s.node) out.push(fromN(s)); }
+    else if (s.t === "p") {
+      const brs = s.branches.map(b => b.filter(n => n.node)).filter(b => b.length).map(b => b.length === 1 ? fromN(b[0]) : b.map(fromN));
+      if (brs.length === 1 && !Array.isArray(brs[0])) out.push(brs[0]); else if (brs.length) out.push(brs);
+    } else out.push(s.v);
+  }
+  return out;
+}
+
+function pathEditor(fl) {
+  const fid = String(fl.id);
+  const steps = toSteps(fl.path);
+  const save = (key, rerender = true) => commit(sp => { findFlow(sp, fid).path = fromSteps(steps); }, key ? `p:${fid}:${key}` : null, { keepInsp: !rerender });
+  const wrap = h("div", { class: "ed-path" });
+  const ctl = (i) => h("div", { class: "ed-step-ctl" },
+    h("button", { type: "button", class: "ed-btn icon small", title: "Wyżej", "aria-label": "Przesuń krok wyżej", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; save(); } }, "↑"),
+    h("button", { type: "button", class: "ed-btn icon small", title: "Niżej", "aria-label": "Przesuń krok niżej", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; save(); } }, "↓"),
+    h("button", { type: "button", class: "ed-btn icon small", title: "Usuń krok", "aria-label": "Usuń krok", onclick: () => { steps.splice(i, 1); save(); } }, "✕"));
+
+  steps.forEach((st, i) => {
+    let body;
+    if (st.t === "n") {
+      body = h("div", { class: "ed-step-body" },
+        nodeSelect(st.node, v => { st.node = v; save(); }, null, `st-${i}`),
+        textIn(st.label, v => { st.label = v; save(`l${i}`, false); }, { ph: "etykieta na strzałce (opcjonalnie)", id: `stl-${i}` }),
+        h("div", {}, h("button", { type: "button", class: "ed-btn small", title: "Zamień ten krok w rozgałęzienie. Kolejny krok połączy wszystkie gałęzie.",
+          onclick: () => { steps[i] = { t: "p", branches: [[{ node: st.node, label: st.label }]] }; save(); } }, "⑂ Rozgałęź")));
+    } else if (st.t === "p") {
+      // rozgałęzienie: nagłówek (ile gałęzi, gdzie się łączą), gałęzie jak drzewko z literą i linią, dodawanie przerywanym polem
+      const nb = st.branches.length, merge = i < steps.length - 1 ? i + 2 : null;
+      const title = h("span", { class: "ed-par-t" }, `Rozgałęzienie: ${nb} ${nb === 1 ? "gałąź" : nb < 5 ? "gałęzie" : "gałęzi"}`);
+      title.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3" r="1.6"/><path d="M4 4.6v8.6M4 7.5c0 3 7.5 1.5 7.5 5.7"/></svg>');
+      const par = h("div", { class: "ed-par" }, h("div", { class: "ed-par-h" }, title,
+        h("span", { class: "ed-par-m", title: merge ? `Gałęzie łączą się w kroku ${merge}` : "Rozgałęzienie kończy przepływ" }, merge ? `łączą się w kroku ${merge}` : "koniec przepływu")));
+      st.branches.forEach((br, b) => {
+        const letter = String.fromCharCode(65 + b);
+        const body2 = h("div", { class: "ed-branch-b" });
+        br.forEach((it, k) => {
+          if (k > 0) body2.append(h("div", { class: "ed-bnext", "aria-hidden": "true" }, "↓"));
+          body2.append(h("div", { class: "ed-bitem" },
+            nodeSelect(it.node, v => { it.node = v; save(); }, null, `br-${i}-${b}-${k}`),
+            h("button", { type: "button", class: "ed-btn icon small ed-bdel", title: "Usuń krok gałęzi", "aria-label": "Usuń krok gałęzi", onclick: () => { br.splice(k, 1); if (!br.length) st.branches.splice(b, 1); if (!st.branches.length) steps.splice(i, 1); save(); } }, "✕"),
+            textIn(it.label, v => { it.label = v; save(`bl${i}-${b}-${k}`, false); }, { ph: "etykieta na strzałce", id: `brl-${i}-${b}-${k}` })));
+        });
+        body2.append(nodeSelect("", v => { br.push({ node: v, label: "" }); save(); }, "＋ dalszy krok w tej gałęzi", `bradd-${i}-${b}`, "ghost"));
+        par.append(h("div", { class: "ed-branch" },
+          h("div", { class: "ed-branch-h" }, h("span", { class: "ed-branch-l", "aria-hidden": "true" }, letter), `Gałąź ${letter}`,
+            h("button", { type: "button", class: "ed-btn icon small", "aria-label": `Usuń gałąź ${letter}`, title: "Usuń gałąź", onclick: () => { st.branches.splice(b, 1); if (!st.branches.length) steps.splice(i, 1); save(); } }, "✕")),
+          body2));
+      });
+      par.append(nodeSelect("", v => { st.branches.push([{ node: v, label: "" }]); save(); }, "＋ nowa gałąź od węzła", `paradd-${i}`, "ghost"));
+      body = par;
+    } else {
+      body = h("div", { class: "ed-par" }, h("div", { class: "ed-hint" }, "Zagnieżdżone rozgałęzienie. Edytuj je w zakładce YAML."), h("code", { style: "font-size:11px;overflow-wrap:anywhere" }, JSON.stringify(st.v)));
+    }
+    wrap.append(h("div", { class: "ed-step" }, h("div", { class: "num" }, String(i + 1)), body, ctl(i)));
+  });
+
+  wrap.append(h("div", { class: "ed-step" }, h("div", { class: "num" }, "＋"),
+    nodeSelect("", v => { steps.push({ t: "n", node: v, label: "" }); save(); }, steps.length ? "Dodaj kolejny krok…" : "Wybierz pierwszy węzeł…", "st-add"), h("span")));
+  return wrap;
+}
+
+function inspFlow(box, f) {
+  if (!f) return inspSettings(box);
+  const id = String(f.id);
+  const nf = page?.doc?.flows.find(x => x.id === id);
+  const upd = (fn, key, rer) => commit(sp => fn(findFlow(sp, id)), key ? `f:${id}:${key}` : null, { keepInsp: !rer });
+  box.append(h("h2", {}, h("span", { class: "ed-line", style: `--c:${nf?.color}` }), "Przepływ ", h("small", {}, id)));
+  box.append(h("div", { class: "ed-actions-row" },
+    h("button", { type: "button", class: "ed-btn" + (S.draw === id ? "" : " primary"), "aria-pressed": String(S.draw === id),
+      onclick: () => { S.draw = S.draw === id ? null : id; S.drawBranch = false; S.msg = S.draw ? "Klikaj węzły na grafie po kolei." : ""; refresh(); } }, S.draw === id ? "Zakończ rysowanie" : "✎ Rysuj na grafie")));
+  box.append(labelField(f.label, id, "flow", v => upd(x => setOrDel(x, "label", v), "label")));
+  box.append(field("Opis", textIn(f.description, v => upd(x => setOrDel(x, "description", v), "desc"), { area: true, rows: 2, id: "in-desc" }), "Pokazuje się po kliknięciu przepływu."));
+  box.append(idField(id, "flow", v => { commit(sp => { findFlow(sp, id).id = v; }); if (S.draw === id) S.draw = v; S.sel = { kind: "flow", id: v }; refresh(); }));
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Kolor"), colorField(f.color, v => upd(x => setOrDel(x, "color", v), null, true), true)));
+  const width = h("input", { type: "range", min: "0.5", max: "8", step: "0.5", id: "in-width" }); width.value = f.width ?? 2.5;
+  const wOut = h("span", { class: "ed-hint" }, `${width.value} px`);
+  width.addEventListener("input", () => { wOut.textContent = `${width.value} px`; upd(x => { x.width = +width.value; }, "width"); });
+  box.append(field("Grubość", h("div", { class: "ed-range" }, width, wOut), null, "in-width"));
+  box.append(styleField(f.style || "solid", nf?.color, f.width, v => upd(x => setOrDel(x, "style", v === "solid" ? "" : v), null, true)));
+  box.append(arrowField(nf?.arrow || "triangle", nf?.color, v => upd(x => { delete x.arrows; setOrDel(x, "arrow", v === "triangle" ? "" : v); }, null, true)));
+  const leg = h("input", { type: "checkbox", id: "in-legend" }); leg.checked = f.legend !== false;
+  leg.addEventListener("change", () => upd(x => setOrDel(x, "legend", leg.checked ? "" : false), null, true));
+  box.append(h("label", { class: "ed-check", for: "in-legend" }, leg, "Pokaż w legendzie"));
+
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Ścieżka"),
+    h("div", { class: "ed-hint" }, "Kroki idą po kolei. Rozgałęzienie rozdziela przepływ na równoległe gałęzie, a następny krok łączy je z powrotem."),
+    pathEditor(f), nf?.route ? h("div", { class: "ed-hint", style: "font-family:var(--fg-mono)" }, nf.route) : null));
+
+  const idx = S.spec.flows.indexOf(f);
+  box.append(h("div", { class: "ed-actions-row" },
+    h("button", { type: "button", class: "ed-btn small", disabled: idx === 0, onclick: () => commit(sp => { const a = sp.flows; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; }) }, "↑ Wyżej w legendzie"),
+    h("button", { type: "button", class: "ed-btn small", disabled: idx === S.spec.flows.length - 1, onclick: () => commit(sp => { const a = sp.flows; [a[idx + 1], a[idx]] = [a[idx], a[idx + 1]]; }) }, "↓ Niżej"),
+    h("button", { type: "button", class: "ed-btn small", onclick: () => commit(sp => { const c = clone(findFlow(sp, id)); c.id = uniqId(id + "-kopia", allIds(sp)); c.label = (c.label || id) + " (kopia)"; sp.flows.splice(idx + 1, 0, c); S.sel = { kind: "flow", id: c.id }; }) }, "Duplikuj")));
+  box.append(h("div", {}, dangerBtn("Usuń przepływ", () => { commit(sp => { sp.flows = sp.flows.filter(x => String(x.id) !== id); }); if (S.draw === id) S.draw = null; S.sel = { kind: "settings" }; refresh(); })));
+}
+
+function inspGroup(box, g) {
+  if (!g) return inspSettings(box);
+  const id = String(g.id);
+  const upd = (fn, key, rer) => commit(sp => fn(findGroup(sp, id)), key ? `g:${id}:${key}` : null, { keepInsp: !rer });
+  box.append(h("h2", {}, "Grupa ", h("small", {}, id)));
+  box.append(labelField(g.label, id, "group", v => upd(x => setOrDel(x, "label", v), "label")));
+  box.append(idField(id, "group", v => { commit(sp => renameGroup(sp, id, v)); S.sel = { kind: "group", id: v }; refresh(); }));
+  const desc = new Set([id]); let grew = true;
+  while (grew) { grew = false; S.spec.groups.forEach(x => { if (x.parent && desc.has(String(x.parent)) && !desc.has(String(x.id))) { desc.add(String(x.id)); grew = true; } }); }
+  box.append(field("Wewnątrz grupy", selectIn([["", "— najwyższy poziom —"], ...S.spec.groups.filter(x => !desc.has(String(x.id))).map(x => [String(x.id), x.label || x.id])],
+    g.parent ? String(g.parent) : "", v => upd(x => setOrDel(x, "parent", v), null, true), "in-parent")));
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Kolor"), colorField(g.color, v => upd(x => setOrDel(x, "color", v), null, true))));
+  const members = S.spec.nodes.filter(n => String(n.group) === id);
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, `Węzły w grupie (${members.length})`),
+    members.length ? h("div", { class: "ed-flowlist" }, members.map(n => h("button", { type: "button", class: "ed-btn small", onclick: () => select({ kind: "node", id: String(n.id) }) }, n.label || n.id)))
+      : h("div", { class: "ed-hint" }, "Pusta grupa nie jest rysowana. Przypisz do niej węzły."),
+    nodeSelect("", v => commit(sp => { findNode(sp, v) ? findNode(sp, v).group = id : sp.nodes.push({ id: v, label: v, group: id }); }), "＋ Dodaj węzeł do grupy…", "in-addmember")));
+  const allIn = groupDescendants(id);
+  const inCount = S.spec.nodes.filter(n => n.group != null && allIn.has(String(n.group))).length;
+  // kierunek tylko dla przycisku „Rozmieść grupę” (nie zapisuje się w dokumencie): ikony jak przy kierunku grafu
+  const gdir = String(S.spec.direction || "LR").toUpperCase();
+  let arrangeDir = "";
+  const dirPick = previewPicker("Kierunek w grupie", [["", `Jak cały graf (${DIR_UI.find(d => d[0] === gdir)?.[1].toLowerCase() || gdir})`, null, "jak graf"], ...DIR_UI], "", null, "dir", v => {
+    arrangeDir = v;
+    dirPick.querySelectorAll("[role=radio]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.dir === v)));
+  }, { id: "in-arrange-dir", w: 30 });
+  box.append(h("div", { class: "ed-field" }, h("span", { class: "ed-lab" }, "Rozmieszczenie"),
+    h("div", { class: "ed-hint" }, `Układa automatycznie ${inCount} węzłów tej grupy i jej podgrup, w miejscu, gdzie grupa jest teraz. Węzły zostają przypięte, reszta grafu się nie zmienia.`),
+    dirPick,
+    h("div", { class: "ed-actions-row" },
+      h("button", { type: "button", class: "ed-btn primary", disabled: !inCount, onclick: () => arrangeGroup(id, arrangeDir) }, "⟲ Rozmieść grupę"),
+      h("button", { type: "button", class: "ed-btn small", disabled: !S.spec.nodes.some(n => n.pos != null && n.group != null && allIn.has(String(n.group))),
+        onclick: () => commit(sp => sp.nodes.forEach(n => { if (n.group != null && allIn.has(String(n.group))) delete n.pos; })) }, "Odepnij węzły grupy"))));
+  box.append(h("div", { class: "ed-actions-row" },
+    h("button", { type: "button", class: "ed-btn", onclick: addNode }, "＋ Nowy węzeł w grupie"),
+    dangerBtn("Usuń grupę", () => { commit(sp => removeGroup(sp, id)); S.sel = { kind: "settings" }; S.msg = "Usunięto grupę. Jej węzły zostały na grafie."; refresh(); })));
+}
+
+function inspNote(box, idx) {
+  const n = S.spec.notes[idx];
+  if (n == null) return inspSettings(box);
+  const upd = (fn, key) => commit(sp => { if (!isObj(sp.notes[idx])) sp.notes[idx] = { text: String(sp.notes[idx]) }; fn(sp.notes[idx]); }, `note:${idx}:${key}`, { keepInsp: true });
+  const o = isObj(n) ? n : { text: String(n) };
+  box.append(h("h2", {}, "Notatka"));
+  box.append(field("Tytuł", textIn(o.title, v => upd(x => setOrDel(x, "title", v), "t"), { id: "in-title" })));
+  box.append(field("Tekst", textIn(o.text, v => upd(x => setOrDel(x, "text", v), "x"), { area: true, rows: 4, id: "in-text" })));
+  box.append(field("Lista punktów", textIn((o.items || []).join("\n"), v => upd(x => { const a = v.split("\n").map(s => s.trim()).filter(Boolean); setOrDel(x, "items", a.length ? a : ""); }, "i"), { area: true, rows: 3, id: "in-items" }), "Jeden punkt na linię."));
+  box.append(h("div", {}, dangerBtn("Usuń notatkę", () => { commit(sp => sp.notes.splice(idx, 1)); S.sel = { kind: "settings" }; refresh(); })));
+}
+
+/* ---------- YAML ---------- */
+/* Kolorowanie składni: prosty tokenizer linia po linii (klucze, napisy, liczby, wartości logiczne,
+   komentarze, znaczniki list, nawiasy, bloki >- i |). */
+const yEsc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const ySpan = (cls, t) => t ? `<span class="${cls}">${yEsc(t)}</span>` : "";
+function yScalar(t) {
+  const core = t.trim();
+  if (!core) return yEsc(t);
+  const lead = t.slice(0, t.indexOf(core)), trail = t.slice(t.indexOf(core) + core.length);
+  let cls = "y-str";
+  if (/^[-+]?(\d[\d_]*(\.\d+)?([eE][-+]?\d+)?|\.\d+|0x[0-9a-fA-F]+|\.inf|\.nan)$/.test(core)) cls = "y-num";
+  else if (/^(true|false|yes|no|on|off|null|~)$/i.test(core)) cls = "y-bool";
+  else if (/^[|>][-+]?\d*$/.test(core)) cls = "y-ind";
+  return yEsc(lead) + ySpan(cls, core) + yEsc(trail);
+}
+// Wartość po dwukropku albo element listy: obsługuje napisy w cudzysłowach, [..] i {..} z kluczami.
+function yValue(v) {
+  let out = "", i = 0, buf = "", depth = 0;
+  const flush = () => { if (buf) { out += yScalar(buf); buf = ""; } };
+  while (i < v.length) {
+    const c = v[i];
+    if (c === '"' || c === "'") {
+      flush();
+      let j = i + 1;
+      while (j < v.length && !(v[j] === c && v[j - 1] !== "\\")) j++;
+      const str = v.slice(i, j + 1);
+      // napis w cudzysłowie użyty jako klucz w {..}
+      if (depth && /^\s*:(\s|$)/.test(v.slice(j + 1))) out += ySpan("y-key", str); else out += ySpan("y-str", str);
+      i = j + 1; continue;
+    }
+    if (c === "#" && (i === 0 || /\s/.test(v[i - 1]))) { flush(); out += ySpan("y-com", v.slice(i)); return out; }
+    if ("[]{},".includes(c)) { flush(); out += ySpan("y-pun", c); depth += "[{".includes(c) ? 1 : "]}".includes(c) ? -1 : 0; i++; continue; }
+    if (c === ":" && depth && (i + 1 >= v.length || /\s/.test(v[i + 1]))) {
+      out += buf.trim() ? yEsc(buf.slice(0, buf.length - buf.trimStart().length)) + ySpan("y-key", buf.trimStart()) : yEsc(buf);
+      buf = ""; out += ySpan("y-pun", ":"); i++; continue;
+    }
+    buf += c; i++;
+  }
+  flush();
+  return out;
+}
+function highlightYaml(text, errLine, cur) {
+  const lines = text.split("\n");
+  let blockIndent = -1; // wcięcie klucza, po którym zaczął się blok >- albo |
+  return lines.map((line, n) => {
+    let html;
+    const indent = line.length - line.trimStart().length;
+    if (blockIndent >= 0 && (line.trim() === "" || indent > blockIndent)) html = ySpan("y-str", line);
+    else {
+      blockIndent = -1;
+      const m = line.match(/^(\s*)((?:-\s+)*)(.*)$/);
+      const [, sp, dashes, rest] = m;
+      html = yEsc(sp) + (dashes ? dashes.replace(/-/g, "\u0000").split("\u0000").map((x, k) => k ? ySpan("y-dash", "-") + yEsc(x) : yEsc(x)).join("") : "");
+      if (/^#/.test(rest)) html += ySpan("y-com", rest);
+      else {
+        const km = rest.match(/^("[^"]*"|'[^']*'|[^\s#'"\[\]{},][^#]*?)(\s*:)(\s+|$)(.*)$/);
+        if (km && !/^[\[{]/.test(rest)) {
+          html += ySpan("y-key", km[1]) + ySpan("y-pun", km[2]) + yEsc(km[3]) + yValue(km[4]);
+          if (/^[|>][-+]?\d*\s*(#.*)?$/.test(km[4].trim())) blockIndent = indent + (dashes ? dashes.length : 0);
+        } else html += yValue(rest);
+      }
+    }
+    return html;
+  }).join("\n") + "\n ";
+}
+let yamlTimer, yamlErrLine = -1;
+const SECTION = { node: "nodes", flow: "flows", group: "groups", note: "notes" };
+const indentOf = l => l.length - l.trimStart().length;
+// Granice sekcji najwyższego poziomu (np. "nodes:") i jej elementów listy.
+function yamlItems(lines, section) {
+  const head = lines.findIndex(l => new RegExp(`^${section}\\s*:`).test(l));
+  if (head < 0) return [];
+  let end = lines.length;
+  for (let i = head + 1; i < lines.length; i++) if (/^[^\s#]/.test(lines[i])) { end = i; break; }
+  let dashIndent = -1;
+  const items = [];
+  for (let i = head + 1; i < end; i++) {
+    const m = lines[i].match(/^(\s*)-(\s|$)/);
+    if (!m) continue;
+    if (dashIndent < 0) dashIndent = m[1].length;
+    if (m[1].length === dashIndent) items.push({ start: i, end });
+  }
+  items.forEach((it, k) => { if (items[k + 1]) it.end = items[k + 1].start; });
+  // obcinamy końcowe puste linie i komentarze
+  items.forEach(it => { while (it.end - 1 > it.start && /^\s*(#.*)?$/.test(lines[it.end - 1])) it.end--; });
+  items.forEach(it => { it.dash = dashIndent; });
+  return items;
+}
+// Id elementu: z linii z myślnikiem ("- id: x" albo "- {id: x, ...}") lub z kluczy elementu.
+function itemId(lines, it) {
+  for (let i = it.start; i < it.end; i++) {
+    const l = lines[i];
+    if (i > it.start && indentOf(l) !== it.dash + 2) continue;
+    const m = (i === it.start ? l.replace(/^\s*-\s*/, "") : l.trim()).match(/(?:^|[{,]\s*)id\s*:\s*("([^"]*)"|'([^']*)'|[^,}\s#]+)/);
+    if (m) return m[2] ?? m[3] ?? m[1];
+  }
+  return null;
+}
+function yamlItemRange(lines, sel) {
+  if (!sel || !SECTION[sel.kind]) return null;
+  const items = yamlItems(lines, SECTION[sel.kind]);
+  if (sel.kind === "note") return items[sel.idx] || null;
+  return items.find(it => itemId(lines, it) === String(sel.id)) || null;
+}
+// Graf -> YAML: przewija do definicji i ustawia kursor na jej początku.
+function locateYaml() {
+  if (!S.yamlOpen) return;
+  const ta = $("#yamlText"), lines = ta.value.split("\n");
+  const r = S.sel.kind === "settings" ? { start: 0, end: 1 } : yamlItemRange(lines, S.sel);
+  paintYaml();
+  if (!r) return;
+  let pos = 0; for (let i = 0; i < r.start; i++) pos += lines[i].length + 1;
+  pos += lines[r.start].length - lines[r.start].replace(/^\s*-?\s*/, "").length;
+  ta.setSelectionRange(pos, pos);
+  const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+  const top = r.start * lh, bottom = r.end * lh, view = ta.clientHeight;
+  if (top < ta.scrollTop + lh || bottom > ta.scrollTop + view - lh) ta.scrollTop = Math.max(0, top - Math.min(view * 0.25, 3 * lh));
+  syncYamlScroll();
+}
+// YAML -> graf: kursor w definicji zaznacza ten element.
+function selectFromCaret() {
+  const ta = $("#yamlText"), lines = ta.value.split("\n");
+  const line = ta.value.slice(0, ta.selectionStart).split("\n").length - 1;
+  let sel = { kind: "settings" };
+  for (const [kind, section] of Object.entries(SECTION)) {
+    const items = yamlItems(lines, section);
+    const k = items.findIndex(it => line >= it.start && line < it.end);
+    if (k < 0) continue;
+    if (kind === "note") sel = { kind, idx: k };
+    else { const id = itemId(lines, items[k]); if (id != null) sel = { kind, id }; }
+    break;
+  }
+  const exists = sel.kind === "settings" || (sel.kind === "node" ? findNode(S.spec, sel.id) : sel.kind === "flow" ? findFlow(S.spec, sel.id) : sel.kind === "group" ? findGroup(S.spec, sel.id) : S.spec.notes[sel.idx]);
+  if (!exists || JSON.stringify(sel) === JSON.stringify(S.sel)) return;
+  S.lastLocated = JSON.stringify(sel); // nie przewijamy YAML, użytkownik jest właśnie w nim
+  select(sel);
+  paintYaml();
+}
+function paintYaml() {
+  const ta = $("#yamlText");
+  const cur = yamlItemRange(ta.value.split("\n"), S.sel);
+  const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18, pt = parseFloat(getComputedStyle(ta).paddingTop) || 0;
+  const band = (cls, a, b) => `<span class="y-band ${cls}" style="top:${pt + a * lh}px;height:${(b - a) * lh}px"></span>`;
+  $("#yamlHl").innerHTML = (cur ? band("y-cur", cur.start, cur.end) : "") + (yamlErrLine >= 0 ? band("y-err", yamlErrLine, yamlErrLine + 1) : "") +
+    highlightYaml(ta.value, yamlErrLine, cur);
+  $("#yamlHl").parentElement.style.setProperty("--yw", ta.scrollWidth + "px");
+  syncYamlScroll();
+}
+function syncYamlScroll() { const ta = $("#yamlText"), pre = $("#yamlHl").parentElement; pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; }
+function renderYaml() {
+  if (!S.yamlOpen) return;
+  const ta = $("#yamlText");
+  if (document.activeElement === ta || S.yamlBad) return paintYaml(); // nie nadpisujemy tekstu w trakcie pisania, ale belka zaznaczenia idzie za wyborem // nie nadpisujemy tekstu, którego nie da się jeszcze wczytać
+  ta.value = toYaml(S.spec);
+  yamlErrLine = -1;
+  $("#yamlMsg").className = "ed-yaml-msg"; $("#yamlMsg").textContent = "Zmiany w YAML od razu trafiają do grafu.";
+  paintYaml();
+}
+$("#yamlText").addEventListener("scroll", syncYamlScroll);
+$("#yamlText").addEventListener("click", () => { if (!S.yamlBad) selectFromCaret(); });
+$("#yamlText").addEventListener("keyup", e => { if (!S.yamlBad && /^(Arrow|Page|Home|End)/.test(e.key)) selectFromCaret(); });
+$("#yamlText").addEventListener("input", () => {
+  paintYaml();
+  clearTimeout(yamlTimer);
+  yamlTimer = setTimeout(() => {
+    const msg = $("#yamlMsg");
+    try {
+      const parsed = jsyaml.load($("#yamlText").value);
+      if (!isObj(parsed)) throw new Error("Na najwyższym poziomie musi być słownik (title, nodes, flows…).");
+      S.yamlBad = false; yamlErrLine = -1;
+      commit(sp => { Object.keys(sp).forEach(k => delete sp[k]); Object.assign(sp, prep(parsed)); fixSel(); }, "yaml", { keepYaml: true });
+      msg.className = "ed-yaml-msg"; msg.textContent = S.errors.length ? `Składnia poprawna, ale w danych są błędy (${S.errors.length}). Szczegóły nad grafem.` : "Zastosowano.";
+    } catch (e) {
+      S.yamlBad = true; yamlErrLine = e.mark ? e.mark.line : -1;
+      msg.className = "ed-yaml-msg err"; msg.textContent = "Błąd składni YAML: " + (e.reason || e.message) + (e.mark ? ` (linia ${e.mark.line + 1})` : "");
+    }
+    paintYaml();
+  }, 400);
+});
+$("#yamlText").addEventListener("blur", () => renderYaml());
+// Tab wstawia dwie spacje zamiast przenosić fokus (Esc, potem Tab, wychodzi z pola)
+let yamlEsc = false;
+$("#yamlText").addEventListener("keydown", e => {
+  if (e.key === "Escape") { yamlEsc = true; return; }
+  if (e.key === "Tab" && !yamlEsc && !e.shiftKey) { e.preventDefault(); document.execCommand("insertText", false, "  "); }
+  yamlEsc = false;
+});
+
+
+/* ---------- status ---------- */
+function renderStatus() {
+  const st = $("#status"); st.innerHTML = "";
+  if (S.savedJson != null && S.savedJson !== JSON.stringify(S.spec)) st.append(h("span", { class: "ed-unsaved" }, S.handle || S.path ? `Niezapisane zmiany w ${S.file}` : "Niezapisane zmiany"));
+  if (S.errors?.length) st.append(h("span", { class: "err" }, `Błędy w danych: ${S.errors.length}`));
+  if (S.msg) st.append(h("span", { class: "msg" }, S.msg));
+  if (TAURI && S.path) st.append(h("span", { title: S.path }, S.path.replace(/^\/Users\/[^/]+/, "~")));
+  st.append(h("span", {}, S.savedAt ? `Autozapis${TAURI ? "" : " w przeglądarce"} ${S.savedAt.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "Autozapis niedostępny w tej przeglądarce"));
+  st.append(h("span", {}, h("kbd", {}, "⌘Z"), " cofnij · ", h("kbd", {}, "Del"), " usuń zaznaczone · ", h("kbd", {}, "Esc"), " zakończ rysowanie"));
+}
+
+/* ---------- pliki ---------- */
+/* W aplikacji (Tauri) jest window.__TAURI__: natywne okna plików, pełne ścieżki, zapis na dysk przez Rust. */
+const TAURI = window.__TAURI__ || null;
+const invoke = (cmd, args) => TAURI.core.invoke(cmd, args);
+const pathBase = p => String(p).split(/[\\/]/).pop();
+const FILTERS = {
+  yml: [{ name: "Graf YAML", extensions: ["yml", "yaml"] }], html: [{ name: "Strona HTML", extensions: ["html"] }],
+  mmd: [{ name: "Mermaid", extensions: ["mmd"] }], png: [{ name: "Obraz PNG", extensions: ["png"] }],
+  svg: [{ name: "Obraz SVG", extensions: ["svg"] }], jpg: [{ name: "Obraz JPG", extensions: ["jpg", "jpeg"] }],
+};
+const extOf = n => (n.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
+async function askSavePath(name) {
+  return TAURI.dialog.save({ defaultPath: S.path ? S.path.replace(/[^\\/]+$/, name) : name, filters: FILTERS[extOf(name)] });
+}
+if (TAURI) FlowGraph.setSaver(async (blob, name) => {
+  const path = await askSavePath(name); if (!path) return false;
+  const data = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.readAsDataURL(blob); });
+  await invoke("write_base64", { path, data });
+  return pathBase(path);
+});
+/* Zwraca nazwę zapisanego pliku albo null, gdy użytkownik anulował. */
+async function download(name, text, type) {
+  if (TAURI) {
+    const path = await askSavePath(name); if (!path) return null;
+    await invoke("write_text", { path, text }); return pathBase(path);
+  }
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return name;
+}
+const baseName = () => S.file ? S.file.replace(/\.(ya?ml|json)$/i, "") : slug(S.spec.title || "graf");
+function viewerHTML() {
+  const vals = {
+    TITLE: String(S.spec.title || "Graf przepływów").replace(/&/g, "&amp;").replace(/</g, "&lt;"),
+    CSS: $("#fg-css").textContent, DAGRE: $("#lib-dagre").textContent, FLOWGRAPH: $("#lib-fg").textContent,
+    SPEC: JSON.stringify(clean(S.spec), null, 1).replace(/</g, "\\u003c"),
+  };
+  return VIEWER_SHELL.replace(/__(TITLE|CSS|DAGRE|FLOWGRAPH|SPEC)__/g, (m, k) => vals[k]);
+}
+/* ---------- menu „Eksportuj” ---------- */
+async function exportAs(kind) {
+  const b = baseName();
+  try {
+    if (kind === "html") {
+      const n = await download(b + ".html", viewerHTML(), "text/html"); if (!n) return;
+      S.msg = `${TAURI ? "Zapisano" : "Pobrano"} ${n}. Plik działa samodzielnie, bez internetu poza fontami.`;
+    }
+    else if (kind === "mermaid") { openMermaid(); return; }
+    else {
+      const stage = $("#preview .fg-stage");
+      if (!stage || !S.spec.nodes.length) { S.msg = "Graf jest pusty, nie ma czego zapisać jako obraz."; renderStatus(); return; }
+      S.msg = `Przygotowuję ${kind.toUpperCase()}…`; renderStatus();
+      const transparent = $("#expTransp").getAttribute("aria-checked") === "true" && kind !== "jpg";
+      const name = await FlowGraph.exportImage(stage, kind, { title: S.spec.title, fileName: b, transparent });
+      S.msg = name ? `${TAURI ? "Zapisano" : "Pobrano"} ${name}${transparent ? " (przezroczyste tło)" : ""}.` : "Anulowano zapis.";
+    }
+  } catch (err) { S.msg = `Eksport nie powiódł się: ${err.message}`; }
+  renderStatus();
+}
+function toggleExport(open) {
+  const m = $("#expMenu"), b = $("#bExport");
+  open = open ?? m.hidden;
+  m.hidden = !open; b.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const r = b.getBoundingClientRect();
+  m.style.top = (r.bottom + 6) + "px";
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+  m.querySelector("button").focus();
+}
+$("#bExport").addEventListener("click", () => toggleExport());
+const TRANSP_KEY = "flowgraph-export-transparent";
+const setTransp = on => { $("#expTransp").setAttribute("aria-checked", String(on)); try { localStorage.setItem(TRANSP_KEY, on ? "1" : "0"); } catch (e) { /* bez zapamiętania */ } };
+try { setTransp(localStorage.getItem(TRANSP_KEY) === "1"); } catch (e) { /* domyślnie z tłem */ }
+$("#expTransp").addEventListener("click", () => setTransp($("#expTransp").getAttribute("aria-checked") !== "true"));
+$("#expMenu").addEventListener("click", e => { const it = e.target.closest("[data-exp]"); if (!it) return; toggleExport(false); exportAs(it.dataset.exp); });
+document.addEventListener("pointerdown", e => { if (!$("#expMenu").hidden && !e.target.closest("#expMenu, #bExport")) toggleExport(false); });
+$("#expMenu").addEventListener("keydown", e => {
+  const items = [...$("#expMenu").querySelectorAll("button")], k = items.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.stopPropagation(); toggleExport(false); $("#bExport").focus(); }
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(k + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+  else if (e.key === "Tab") toggleExport(false);
+});
+/* ---------- otwieranie i zapis ----------
+   W Chrome i Edge „Otwórz” daje uchwyt do pliku, więc „Zapisz” nadpisuje ten sam plik na dysku.
+   W innych przeglądarkach „Zapisz” pobiera plik .yml. */
+const FS_API = typeof window.showOpenFilePicker === "function" && typeof window.showSaveFilePicker === "function";
+const YAML_TYPES = [{ description: "Graf YAML", accept: { "text/yaml": [".yml", ".yaml"] } }];
+/* Obsługiwane pliki: komunikat przy próbie otwarcia czegoś innego (okno, nie tylko pasek stanu). */
+const SUPPORTED_FILES = "Obsługiwane pliki: graf YAML (.yml, .yaml), graf JSON (.json) i schemat blokowy Mermaid (.mmd, .mermaid).";
+function notSupported(title, html) {
+  askDialog({ title, text: html, buttons: [{ id: "ok", label: "OK", primary: true }] });
+}
+function loadText(name, text, handle, path, label) {
+  if (/\.(mmd|mermaid)$/i.test(name) || FlowGraphMermaid.looksLikeMermaid(text)) {
+    S.handle = null; setPath(null);
+    const r = importMermaid(text, name);
+    if (r.error) notSupported("Nie można wczytać diagramu Mermaid", `<b>„${escHtml(name)}”</b>: ${escHtml(r.error)}`);
+    return !r.error;
+  }
+  const known = /\.(ya?ml|json)$/i.test(name);
+  try {
+    const parsed = jsyaml.load(text);
+    if (!isObj(parsed)) throw new Error("plik nie zawiera słownika na najwyższym poziomie");
+    const yml = /\.ya?ml$/i.test(name); // JSON zapisujemy jako nowy plik YAML
+    S.file = name; S.handle = yml ? handle || null : null;
+    setPath(yml ? path || null : null, text);
+    // w aplikacji historia jest przypisana do pełnej ścieżki, w przeglądarce do nazwy pliku
+    replaceSpec(parsed, label ? `${label}.` : `Wczytano ${name}.`, label || `Otwarto plik ${name}`, "plik:" + (path || name));
+    markSaved();
+    return true;
+  } catch (err) {
+    const why = err.reason || err.message;
+    S.msg = `Nie udało się wczytać ${name}: ${why}`; renderStatus();
+    notSupported(known ? "Nie można wczytać pliku" : "Nieobsługiwany format pliku",
+      `${known ? `<b>„${escHtml(name)}”</b> nie jest poprawnym grafem: ${escHtml(why)}.` : `Nie można otworzyć <b>„${escHtml(name)}”</b>.`} ${SUPPORTED_FILES}`);
+    return false;
+  }
+}
+/* Bieżący plik na dysku (tylko w aplikacji): obserwujemy go i pamiętamy na liście ostatnich. */
+function setPath(path, diskText) {
+  S.path = path || null;
+  S.diskText = diskText ?? null;
+  if (!TAURI) return;
+  invoke("watch_file", { path: S.path }).catch(() => {});
+  if (S.path) addRecent(S.path);
+}
+const RECENT_KEY = "flowgraph-recent";
+function recentList() { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch (e) { return []; } }
+function addRecent(path, remove) {
+  let list = recentList().filter(p => p !== path);
+  if (!remove && path) list.unshift(path);
+  list = list.slice(0, 10);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* bez zapamiętania */ }
+  if (TAURI) invoke("set_recent", { paths: list }).catch(() => {});
+}
+/* Okno pytania w stylu edytora (zamiast confirm() przeglądarki i natywnego okna systemu).
+   buttons: [{ id, label, primary?, danger? }], pierwszy przycisk dostaje fokus (najbezpieczniejszy wybór).
+   Zwraca id wybranego przycisku albo null (Esc). Tekst może zawierać <b> dla nazw plików (reszta jest escapowana). */
+const ASK_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+function askDialog({ title, text, buttons }) {
+  return new Promise(resolve => {
+    const p = h("p", { id: "askText" }); p.innerHTML = text;
+    const ico = h("div", { class: "ed-ask-ico" }); ico.innerHTML = ASK_ICON;
+    const foot = h("div", { class: "ed-ask-f" });
+    const dlg = h("dialog", { class: "ed-dlg ed-ask", role: "alertdialog", "aria-labelledby": "askTitle", "aria-describedby": "askText" },
+      ico, h("h2", { id: "askTitle" }, title), p, foot);
+    let result = null;
+    // kolejność na ekranie: od lewej najmniej ważne, główna akcja z prawej (jak w macOS)
+    [...buttons].reverse().forEach(b => foot.append(h("button", {
+      type: "button", class: "ed-btn" + (b.primary ? " primary" : "") + (b.danger ? " danger" : "") + (b.lead ? " lead" : ""), "data-ask": b.id,
+      onclick: () => { result = b.id; dlg.close(); } }, b.label)));
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
+    document.body.append(dlg);
+    dlg.showModal();
+    foot.querySelector(`[data-ask="${buttons[0].id}"]`).focus();
+  });
+}
+const escHtml = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+/* Pytanie o niezapisane zmiany bieżącej karty: Zapisz (domyślne, Enter), Anuluj, „… bez zapisywania”.
+   Zwraca true, gdy można iść dalej (zapisano albo porzucono zmiany). Przerwany zapis = jak Anuluj. */
+async function confirmDiscard(what) {
+  if (!isDirtyDoc(S)) return true;
+  const name = S.file ? `<b>„${escHtml(S.file)}”</b> ma` : "Graf ma";
+  const r = await askDialog({
+    title: "Niezapisane zmiany",
+    text: `${name} niezapisane zmiany. Zapisać je przed zamknięciem? Bez zapisu zostaną w historii tego pliku, ale nie na dysku.`,
+    buttons: [{ id: "save", label: "Zapisz", primary: true }, { id: "cancel", label: "Anuluj" }, { id: "discard", label: `${what} bez zapisywania`, danger: true, lead: true }],
+  });
+  if (r === "save") { await save(); return !isDirtyDoc(S); }
+  return r === "discard";
+}
+/* Otwiera plik w karcie: już otwarty → przełącza na jego kartę (bez niezapisanych zmian wczytuje świeżą treść),
+   inaczej w nowej karcie (pusta, nietknięta karta zostaje wykorzystana). */
+function openFile(name, text, handle, path) {
+  const key = /\.(mmd|mermaid)$/i.test(name) ? null : "plik:" + (path || name);
+  const prev = T.i, how = tabFor(key);
+  if (how === "open" && isDirtyDoc(S)) { S.msg = `„${name}” jest już otwarty i ma niezapisane zmiany. Zostawiam otwartą wersję.`; renderStatus(); return true; }
+  const ok = loadText(name, text, handle, path);
+  if (!ok && how === "new") { closeTab(T.i); activate(Math.min(prev, T.list.length - 1)); } // nieudane wczytanie: bez pustej karty, z powrotem na poprzednią
+  return ok;
+}
+async function openPath(path) {
+  let text;
+  try { text = await invoke("read_text", { path }); }
+  catch (err) { S.msg = `Nie udało się otworzyć ${path}: ${err}`; addRecent(path, true); renderStatus(); return; }
+  openFile(pathBase(path), text, null, path);
+}
+async function openPaths(paths) { for (const p of paths) await openPath(p); }
+async function openDialog() {
+  const sel = await TAURI.dialog.open({ multiple: true, directory: false, filters: [{ name: "Graf (YAML, JSON, Mermaid)", extensions: ["yml", "yaml", "json", "mmd", "mermaid"] }] });
+  if (sel) openPaths([].concat(sel));
+}
+/* Treść pliku aktywnej karty na dysku: przy pierwszym odczycie tylko zapamiętujemy (kropka „niezapisane” = różnica z dyskiem),
+   później zmiana na dysku przeładowuje kartę, a przy niezapisanych zmianach najpierw pyta. */
+async function syncFromDisk() {
+  const key = S.docKey, path = S.path;
+  let text; try { text = await invoke("read_text", { path }); }
+  catch (err) { if (S.docKey === key) { S.msg = `Pliku ${path} nie ma już na dysku.`; renderStatus(); } return; }
+  if (S.docKey !== key || S.path !== path) return; // w międzyczasie przełączono kartę
+  if (text === S.diskText) return; // nasz własny zapis albo brak zmian
+  if (S.diskText == null) {
+    S.diskText = text;
+    try { S.savedJson = JSON.stringify(prep(jsyaml.load(text))); } catch (e) { /* zostaje poprzedni punkt odniesienia */ }
+    renderSaveState(); renderStatus(); return;
+  }
+  S.diskText = text;
+  if (isDirtyDoc(S) && await askDialog({
+    title: "Plik zmienił się na dysku",
+    text: `<b>„${escHtml(S.file)}”</b> zmienił się na dysku. Wczytać nową wersję? Twoje niezapisane zmiany zostaną w historii.`,
+    buttons: [{ id: "keep", label: "Zostaw moją wersję" }, { id: "load", label: "Wczytaj", primary: true }],
+  }) !== "load") return;
+  if (S.docKey !== key) return;
+  loadText(S.file, text, null, S.path, "Plik zmieniony na dysku");
+  appLog(`przeładowano po zmianie na dysku: ${S.path} (tytuł: ${S.spec.title})`);
+}
+$("#bOpen").addEventListener("click", async e => {
+  if (TAURI) { e.preventDefault(); openDialog(); return; }
+  if (!FS_API) return; // zwykłe okno <input type=file>
+  e.preventDefault();
+  try {
+    const hs = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Graf (YAML, JSON, Mermaid)", accept: { "text/plain": [".yml", ".yaml", ".json", ".mmd", ".mermaid"] } }] });
+    for (const h of hs) { const f = await h.getFile(); openFile(f.name, await f.text(), h); }
+  } catch (err) { if (err.name !== "AbortError") { S.msg = "Nie udało się otworzyć pliku: " + err.message; renderStatus(); } }
+});
+$("#bOpen").addEventListener("change", e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  (async () => { for (const f of files) openFile(f.name, await f.text(), null); e.target.value = ""; })();
+});
+function markSaved() { S.savedJson = JSON.stringify(S.spec); renderSaveState(); }
+function renderSaveState() {
+  renderTabs();
+  const b = $("#bSave"), dirty = S.savedJson !== JSON.stringify(S.spec);
+  b.classList.toggle("dirty", dirty);
+  b.textContent = "Zapisz";
+  b.setAttribute("aria-label", dirty ? "Zapisz zmiany (plik ma niezapisane zmiany)" : "Zapisz (brak niezapisanych zmian)");
+  document.title = (dirty ? "● " : "") + `Edytor: ${S.spec.title || "graf"}`;
+  if (TAURI) {
+    const t = `${dirty ? "● " : ""}${S.file || S.spec.title || "Nowy graf"}${S.path ? "  —  " + S.path.replace(/[\\/][^\\/]+$/, "").replace(/^\/Users\/[^/]+/, "~") : ""}`;
+    if (t !== S.winTitle) { S.winTitle = t; TAURI.window.getCurrentWindow().setTitle(t).catch(() => {}); }
+  }
+  const st = $("#status .ed-unsaved");
+  if (dirty && !st) $("#status").prepend(h("span", { class: "ed-unsaved" }, S.handle || S.path ? `Niezapisane zmiany w ${S.file}` : "Niezapisane zmiany"));
+  else if (!dirty && st) st.remove();
+  b.title = (dirty ? "Niezapisane zmiany. " : "Wszystko zapisane. ") + (S.path ? `Zapis do ${S.path}` : S.handle ? `Zapis do ${S.handle.name}` : "Zapisz jako plik YAML") + " (Cmd/Ctrl+S)";
+}
+async function saveTauri(as) {
+  const text = toYaml(S.spec);
+  let path = S.path;
+  if (!path || as) {
+    path = await TAURI.dialog.save({ defaultPath: S.path || baseName() + ".yml", filters: FILTERS.yml });
+    if (!path) return;
+  }
+  try {
+    S.diskText = text; // obserwator zobaczy własny zapis; po tej treści go rozpoznamy
+    await invoke("write_text", { path, text });
+  } catch (err) { S.msg = "Nie udało się zapisać: " + err; renderStatus(); return; }
+  const newKey = "plik:" + path;
+  if (S.docKey !== newKey) { // pierwszy zapis albo „zapisz jako”: historia idzie za plikiem
+    const old = S.docKey; S.docKey = newKey;
+    if (old.startsWith("nowy:") || old.startsWith("mermaid:") || old === "sesja") touchHistIndex(null, old);
+  }
+  S.file = pathBase(path);
+  if (path !== S.path) setPath(path, text);
+  persist(); markSaved();
+  S.msg = `Zapisano ${S.file} o ${new Date().toLocaleTimeString("pl-PL")}.`;
+  renderStatus();
+}
+async function save(as) {
+  if (TAURI) return saveTauri(as === true);
+  const text = toYaml(S.spec);
+  try {
+    if (!S.handle && FS_API) {
+      S.handle = await window.showSaveFilePicker({ suggestedName: baseName() + ".yml", types: YAML_TYPES });
+    }
+    if (S.handle) {
+      const w = await S.handle.createWritable(); await w.write(text); await w.close();
+      S.file = S.handle.name;
+      if (S.docKey !== "plik:" + S.handle.name) { // „zapisz jako”: historia przechodzi na nowy plik
+        const old = S.docKey; S.docKey = "plik:" + S.handle.name;
+        if (old.startsWith("nowy:") || old.startsWith("mermaid:") || old === "sesja") touchHistIndex(null, old);
+        persist();
+      }
+      S.msg = `Zapisano ${S.handle.name} o ${new Date().toLocaleTimeString("pl-PL")}.`;
+    } else {
+      download(baseName() + ".yml", text, "text/yaml");
+      S.msg = `Pobrano ${baseName()}.yml.`;
+    }
+    markSaved();
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    S.handle = null; S.msg = "Nie udało się zapisać: " + err.message;
+  }
+  renderStatus();
+}
+$("#bSave").addEventListener("click", () => save());
+$("#bNew").addEventListener("click", () => {
+  if (!isPristine(S)) newTab();
+  S.msg = "Nowy pusty graf. Zacznij od „＋ Węzeł”."; renderStatus();
+});
+/* „Nowy ▾”: strzałka przy „Nowy” otwiera menu z pustym grafem i przykładami. */
+function openExample(k) {
+  if (tabFor("przyklad:" + k) === "open") return;
+  S.file = k + ".yml"; S.handle = null; setPath(null);
+  replaceSpec(clone(EXAMPLES[k]), `Wczytano przykład „${EXAMPLES[k].title || k}”.`, `Wczytano przykład ${quote(EXAMPLES[k].title || k)}`, "przyklad:" + k);
+  markSaved();
+}
+$("#exMenu").append(
+  h("button", { type: "button", role: "menuitem", "data-ex": "" }, h("b", {}, "Pusty graf"), TAURI ? h("span", {}, "⌘N") : null),
+  h("div", { class: "ed-menu-h" }, "Przykłady"),
+  ...Object.keys(EXAMPLES).map(k => h("button", { type: "button", role: "menuitem", "data-ex": k }, h("b", {}, EXAMPLES[k].title || k))));
+function toggleExamples(open) {
+  const m = $("#exMenu"), b = $("#bNewMenu");
+  open = open ?? m.hidden;
+  m.hidden = !open; b.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const r = $("#bNew").getBoundingClientRect();
+  m.style.top = (r.bottom + 6) + "px";
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+  m.querySelector("button").focus();
+}
+$("#bNewMenu").addEventListener("click", () => toggleExamples());
+$("#exMenu").addEventListener("click", e => {
+  const it = e.target.closest("[data-ex]"); if (!it) return;
+  toggleExamples(false);
+  if (it.dataset.ex) openExample(it.dataset.ex); else $("#bNew").click();
+});
+document.addEventListener("pointerdown", e => { if (!$("#exMenu").hidden && !e.target.closest("#exMenu, #bNewMenu")) toggleExamples(false); });
+$("#exMenu").addEventListener("keydown", e => {
+  const items = [...$("#exMenu").querySelectorAll("button")], k = items.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.stopPropagation(); toggleExamples(false); $("#bNewMenu").focus(); }
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(k + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+  else if (e.key === "Tab") toggleExamples(false);
+});
+/* Otwórz ▾: plik albo import z Mermaid (okno Mermaid w trybie importu: puste pole do wklejenia) */
+if (TAURI) $('#openMenu [data-open="file"] span').textContent = "⌘O";
+function toggleOpenMenu(open) {
+  const m = $("#openMenu"), b = $("#bOpenMenu");
+  open = open ?? m.hidden;
+  m.hidden = !open; b.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const r = $("#bOpen").parentElement.getBoundingClientRect();
+  m.style.top = (r.bottom + 6) + "px";
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+  m.querySelector("button").focus();
+}
+$("#bOpenMenu").addEventListener("click", () => toggleOpenMenu());
+$("#openMenu").addEventListener("click", e => {
+  const it = e.target.closest("[data-open]"); if (!it) return;
+  toggleOpenMenu(false);
+  if (it.dataset.open === "mermaid") openMermaid("import"); else $("#bOpen").click();
+});
+document.addEventListener("pointerdown", e => { if (!$("#openMenu").hidden && !e.target.closest("#openMenu, #bOpenMenu")) toggleOpenMenu(false); });
+$("#openMenu").addEventListener("keydown", e => {
+  const items = [...$("#openMenu").querySelectorAll("button")], k = items.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.stopPropagation(); toggleOpenMenu(false); $("#bOpenMenu").focus(); }
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(k + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+  else if (e.key === "Tab") toggleOpenMenu(false);
+});
+$("#bUndo").addEventListener("click", undo);
+/* ---------- Mermaid ---------- */
+function importMermaid(text, name) {
+  let r;
+  try { r = FlowGraphMermaid.fromMermaid(text); }
+  catch (err) { S.msg = `Nie udało się wczytać Mermaid${name ? " z " + name : ""}: ${err.message}`; renderStatus(); return { error: err.message }; }
+  if (name) S.file = name.replace(/\.(mmd|mermaid|md|txt)$/i, "") + ".yml";
+  const w = r.warnings.length ? ` Ostrzeżenia: ${r.warnings.length} (${r.warnings[0]}${r.warnings.length > 1 ? " …" : ""}).` : "";
+  replaceSpec(r.spec, `Wczytano z Mermaid: ${r.spec.nodes.length} węzłów, ${r.spec.flows.length} przepływów.${w}`, name ? `Import Mermaid z ${name}` : "Import z Mermaid", name ? "plik:" + S.file : "mermaid:" + Date.now());
+  return r;
+}
+const mmMsg = (text, err, list) => {
+  const m = $("#mmMsg"); m.className = "ed-dlg-msg" + (err ? " err" : ""); m.textContent = text;
+  if (list && list.length) m.append(h("ul", {}, ...list.slice(0, 6).map(x => h("li", {}, x))));
+};
+function mmFill() {
+  try { $("#mmText").value = FlowGraphMermaid.toMermaid(clean(S.spec)); mmMsg("To jest bieżący graf. Zmień tekst albo wklej własny i kliknij „Wczytaj do edytora” (otworzy się w nowej karcie)."); }
+  catch (err) { mmMsg("Eksport nie powiódł się: " + err.message, true); }
+}
+/* Okno Mermaid: z eksportu pokazuje bieżący graf, z „Otwórz ▾ → Z Mermaid…” (mode "import") puste pole do wklejenia. */
+function openMermaid(mode) {
+  const imp = mode === "import";
+  $("#mmTitle").textContent = imp ? "Import z Mermaid" : "Mermaid";
+  if (imp) {
+    $("#mmText").value = "";
+    $("#mmText").placeholder = "flowchart LR\n  A[Start] --> B{Decyzja}\n  B -->|tak| C[Koniec]";
+    mmMsg("Wklej diagram Mermaid (flowchart albo graph) albo otwórz plik .mmd, a potem kliknij „Wczytaj do edytora”. Graf otworzy się w nowej karcie.");
+  } else { $("#mmText").placeholder = ""; mmFill(); }
+  $("#mmDlg").showModal(); $("#mmText").focus(); $("#mmText").setSelectionRange(0, 0); $("#mmText").scrollTop = 0;
+}
+$("#mmClose").addEventListener("click", () => $("#mmDlg").close());
+$("#mmDlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); }); // klik w tło
+$("#mmFrom").addEventListener("click", mmFill);
+$("#mmCopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("#mmText").value); mmMsg("Skopiowano do schowka."); }
+  catch (err) { $("#mmText").select(); mmMsg("Przeglądarka nie dała dostępu do schowka. Tekst jest zaznaczony, naciśnij ⌘C."); }
+});
+$("#mmSave").addEventListener("click", async () => { const n = await download(baseName() + ".mmd", $("#mmText").value, "text/plain"); if (n) mmMsg(`${TAURI ? "Zapisano" : "Pobrano"} ${n}.`); });
+$("#mmFile").addEventListener("change", e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => { $("#mmText").value = r.result; mmMsg(`Wczytano ${file.name}. Kliknij „Wczytaj do edytora”, żeby otworzyć go w nowej karcie.`); e.target.value = ""; };
+  r.readAsText(file);
+});
+$("#mmImport").addEventListener("click", () => {
+  let r;
+  try { r = FlowGraphMermaid.fromMermaid($("#mmText").value); } catch (err) { mmMsg("Nie da się wczytać: " + err.message, true); return; }
+  tabFor(null); // import z okna otwiera się w nowej karcie
+  importMermaid($("#mmText").value);
+  $("#mmDlg").close();
+});
+/* ---------- panel historii ---------- */
+function renderHistory() {
+  const pane = $("#histPane"), hadFocus = pane.contains(document.activeElement);
+  pane.innerHTML = "";
+  const undone = S.tl.length - 1 - S.cur;
+  const count = `${S.tl.length} ${S.tl.length === 1 ? "stan" : S.tl.length % 10 >= 2 && S.tl.length % 10 <= 4 && (S.tl.length % 100 < 12 || S.tl.length % 100 > 14) ? "stany" : "stanów"}${undone ? `, ${undone} cofniętych` : ""}`;
+  pane.append(h("div", { class: "ed-yaml-h" }, h("b", { title: "Każdy plik ma własną historię" }, `Historia: ${docName()}`),
+    h("span", { class: "ed-yaml-msg", title: "Cofnięte zmiany zostają na liście, dopóki nie zrobisz nowej." }, `${count} · kliknij wpis, żeby wrócić do stanu po tej zmianie`),
+    h("button", { class: "ed-btn icon small", id: "histClose", type: "button", "aria-label": "Ukryj historię", title: "Ukryj historię", onclick: () => { toggleHistory(false); $("#bHist").focus(); } }, "✕")));
+  const list = h("ol", { class: "ed-hist-list" });
+  for (let i = S.tl.length - 1; i >= 0; i--) {
+    const e = S.tl[i];
+    const cls = "ed-hrow" + (i === S.cur ? " cur" : "") + (i > S.cur ? " future" : "");
+    list.append(h("li", {}, h("button", { type: "button", class: cls, "aria-current": i === S.cur ? "step" : null, "data-i": String(i),
+      title: i === S.cur ? "Bieżący stan" : "Wróć do stanu po tej zmianie", onclick: () => { goTo(i); $(`#histPane [data-i="${i}"]`)?.focus(); } },
+      h("time", {}, new Date(e.t).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })),
+      h("span", { class: "lbl" }, e.label),
+      h("span", { class: "tag" }, i === S.cur ? "teraz" : i > S.cur ? "cofnięte" : ""))));
+  }
+  pane.append(list);
+  const cur = list.querySelector(".ed-hrow.cur");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+  if (hadFocus) (cur || pane).focus?.();
+}
+/* Motyw jako jeden przycisk z ikoną: kliknięcie przechodzi do następnego motywu, nazwa w podpowiedzi. */
+const THEME_ICONS = {
+  auto: ["automatyczny (jak system)", '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>'],
+  light: ["jasny", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'],
+  dark: ["ciemny", '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'],
+  black: ["czarny", '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/>'] };
+function initThemeButton() {
+  const b = $("#bTheme"), order = Object.keys(THEME_ICONS);
+  const paint = () => {
+    const t = FlowGraph.getTheme(), [name, icon] = THEME_ICONS[t] || THEME_ICONS.auto;
+    const next = THEME_ICONS[order[(order.indexOf(t) + 1) % order.length]][0];
+    b.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
+    b.title = `Motyw: ${name}. Kliknij, żeby przełączyć na: ${next}.`;
+    b.setAttribute("aria-label", `Motyw: ${name}`);
+    b.dataset.theme = t;
+  };
+  b.addEventListener("click", () => { const t = FlowGraph.getTheme(); FlowGraph.setTheme(order[(order.indexOf(t) + 1) % order.length]); });
+  document.addEventListener("fg-theme", paint);
+  paint();
+}
+/* Historia jest dolnym panelem (jak YAML); stan i animację prowadzi moduł paneli (setBottom). */
+function toggleHistory(open) {
+  open = open ?? $("#histPane").hidden;
+  setBottom("hist", open);
+  if (open) { renderHistory(); $("#histPane .ed-hrow.cur")?.focus(); }
+}
+$("#bHist").addEventListener("click", () => toggleHistory(!S.histOpen));
+$("#histPane").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.stopPropagation(); toggleHistory(false); $("#bHist").focus(); }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const rows = [...$("#histPane").querySelectorAll(".ed-hrow")], k = rows.indexOf(document.activeElement);
+    rows[Math.max(0, Math.min(rows.length - 1, k + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+  }
+});
+$("#bRedo").addEventListener("click", redo);
+$("#tNode").addEventListener("click", addNode);
+$("#tFlow").addEventListener("click", addFlow);
+$("#tGroup").addEventListener("click", addGroup);
+$("#tNote").addEventListener("click", addNote);
+$("#tArrange").addEventListener("click", () => S.sel.kind === "group" ? arrangeGroup(S.sel.id) : arrangeAll());
+
+document.addEventListener("keydown", e => {
+  if (e.target instanceof Element && e.target.closest("dialog[open]")) return; // okno dialogowe obsługuje klawisze samo
+  const typing = e.target instanceof Element ? e.target.closest("input, textarea, select, .ed-sel-b") : null;
+  const mod = e.metaKey || e.ctrlKey;
+  if (TAURI && mod && /^[szyw]$/i.test(e.key)) return; // w aplikacji te skróty idą przez menu
+  // karty: Ctrl+Tab / Ctrl+Shift+Tab oraz Cmd/Ctrl+Shift+[ ]
+  if (TAURI && e.ctrlKey && e.key === "Tab") return; // w aplikacji przez menu Okno
+  if ((e.ctrlKey && e.key === "Tab") || (mod && e.shiftKey && (e.code === "BracketLeft" || e.code === "BracketRight"))) {
+    e.preventDefault();
+    const back = e.key === "Tab" ? e.shiftKey : e.code === "BracketLeft";
+    activate((T.i + (back ? -1 : 1) + T.list.length) % T.list.length); return;
+  }
+  if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+  if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === "y" && !typing) { e.preventDefault(); redo(); return; }
+  // powiększenie grafu: ⌘+ / ⌘− / ⌘0 (dopasuj); w aplikacji przez menu Widok
+  if (mod && !e.altKey && !typing && ["=", "+", "-", "0"].includes(e.key)) {
+    if (TAURI) return;
+    e.preventDefault();
+    if (e.key === "-") page.zoomOut(); else if (e.key === "0") page.zoomFit(); else page.zoomIn();
+    return;
+  }
+  if (e.key === "Escape") { if (S.draw) { S.draw = null; S.msg = ""; refresh(); } else if (!typing && S.sel.kind !== "settings") select({ kind: "settings" }); return; }
+  if ((e.key === "Delete" || e.key === "Backspace") && !typing) {
+    const s = S.sel;
+    if (s.kind === "node") { commit(sp => removeNode(sp, s.id)); S.msg = "Usunięto węzeł. ⌘Z cofa."; }
+    else if (s.kind === "flow") { commit(sp => { sp.flows = sp.flows.filter(x => String(x.id) !== s.id); }); S.msg = "Usunięto przepływ. ⌘Z cofa."; }
+    else if (s.kind === "group") { commit(sp => removeGroup(sp, s.id)); S.msg = "Usunięto grupę. ⌘Z cofa."; }
+    else if (s.kind === "note") { commit(sp => sp.notes.splice(s.idx, 1)); S.msg = "Usunięto notatkę. ⌘Z cofa."; }
+    else return;
+    e.preventDefault(); fixSel(); S.sel = { kind: "settings" }; refresh();
+  }
+});
+
+/* ---------- szerokość paneli bocznych ---------- */
+(function panels() {
+  const app = $(".ed-app"), main = $(".ed-main"), KEY = "flowgraph-editor-panels";
+  const DEF = { left: 280, right: 370, yamlH: 260, showLeft: true, showRight: true, yaml: false, hist: false };
+  const MIN = { left: 180, right: 260 }, MAX = { left: 640, right: 760 }, MAIN_MIN = 360, YAML_MIN = 120, PREVIEW_MIN = 160;
+  let W = { ...DEF };
+  try { W = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) { /* bez zapisu */ }
+  const shown = side => side === "left" ? W.showLeft : W.showRight;
+  const clamp = (side, v) => {
+    const other = side === "left" ? (W.showRight ? W.right : 0) : (W.showLeft ? W.left : 0);
+    const max = Math.min(MAX[side], app.clientWidth - other - MAIN_MIN);
+    return Math.round(Math.max(MIN[side], Math.min(max, v)));
+  };
+  const clampY = v => Math.round(Math.max(YAML_MIN, Math.min(main.clientHeight - PREVIEW_MIN, v)));
+  const ANIM_MS = 260;
+  const animOn = () => app.classList.contains("ed-anim") && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function reveal(el, show) {
+    clearTimeout(el._hideT);
+    if (show) { el.hidden = false; return; }
+    if (el.hidden) return;
+    if (!animOn()) { el.hidden = true; return; }
+    el._hideT = setTimeout(() => { el.hidden = true; }, ANIM_MS);
+  }
+  function revealBottom(el, show) {
+    clearTimeout(el._hideT);
+    const anim = animOn();
+    el.classList.toggle("ed-anim-y", anim);
+    if (show) {
+      if (!el.hidden && !el.classList.contains("ed-closed")) return;
+      el.classList.add("ed-closed"); el.hidden = false;
+      void el.offsetHeight; // start animacji od wysokości 0
+      el.classList.remove("ed-closed");
+      return;
+    }
+    if (el.hidden) return;
+    if (!anim) { el.hidden = true; return; }
+    el.classList.add("ed-closed");
+    el._hideT = setTimeout(() => { el.hidden = true; el.classList.remove("ed-closed"); }, ANIM_MS);
+  }
+  // only: ograniczamy tylko przeciągany panel, pozostałe zostają bez zmian
+  const apply = (save, only) => {
+    if (only === "y") W.yamlH = clampY(W.yamlH);
+    else if (only) W[only] = clamp(only, W[only]);
+    else { if (W.showRight) W.right = clamp("right", W.right); if (W.showLeft) W.left = clamp("left", W.left); if (W.yaml || W.hist) W.yamlH = clampY(W.yamlH); }
+    app.style.setProperty("--left", (W.showLeft ? W.left : 0) + "px"); app.style.setProperty("--right", (W.showRight ? W.right : 0) + "px");
+    app.style.setProperty("--leftW", W.left + "px"); app.style.setProperty("--rightW", W.right + "px");
+    app.style.setProperty("--yamlH", W.yamlH + "px");
+    // pokazanie od razu (animacja wysuwa panel), ukrycie dopiero po animacji
+    reveal($(".ed-side"), W.showLeft); $("#splitL").hidden = !W.showLeft;
+    reveal($("#insp"), W.showRight); $("#splitR").hidden = !W.showRight;
+    if (W.yaml && W.hist) W.hist = false; // na dole jeden panel naraz
+    revealBottom($("#yamlPane"), W.yaml); revealBottom($("#histPane"), W.hist); $("#splitY").hidden = !W.yaml && !W.hist;
+    $("#vLeft").setAttribute("aria-pressed", String(W.showLeft)); $("#vRight").setAttribute("aria-pressed", String(W.showRight)); $("#vYaml").setAttribute("aria-pressed", String(W.yaml)); $("#bHist").setAttribute("aria-pressed", String(W.hist));
+    $("#splitL").setAttribute("aria-valuenow", W.left); $("#splitR").setAttribute("aria-valuenow", W.right); $("#splitY").setAttribute("aria-valuenow", W.yamlH);
+    const wasOpen = S.yamlOpen; S.yamlOpen = W.yaml;
+    const histWas = S.histOpen; S.histOpen = W.hist;
+    if (W.hist && !histWas && S.spec) renderHistory();
+    if (W.yaml && !wasOpen && S.spec) { renderYaml(); locateYaml(); }
+    if (save) try { localStorage.setItem(KEY, JSON.stringify(W)); } catch (e) { /* bez zapisu */ }
+  };
+  const drag = (el, side, onMove, cls) => {
+    el.addEventListener("pointerdown", e => {
+      if (e.button !== 0) return;
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      el.classList.add("active"); document.body.classList.add(cls);
+      const r = side === "y" ? main.getBoundingClientRect() : app.getBoundingClientRect();
+      const move = ev => { onMove(ev, r); apply(false, side); };
+      const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
+        el.classList.remove("active"); document.body.classList.remove(cls); apply(true, side); };
+      el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+    });
+  };
+  const bindX = (el, side) => {
+    el.setAttribute("aria-valuemin", MIN[side]); el.setAttribute("aria-valuemax", MAX[side]);
+    drag(el, side, (ev, r) => { W[side] = side === "left" ? ev.clientX - r.left : r.right - ev.clientX; }, "ed-resizing");
+    el.addEventListener("dblclick", () => { W[side] = DEF[side]; apply(true, side); });
+    el.addEventListener("keydown", e => {
+      const step = e.shiftKey ? 64 : 16;
+      const grow = side === "left" ? { ArrowRight: 1, ArrowLeft: -1 } : { ArrowLeft: 1, ArrowRight: -1 };
+      if (grow[e.key]) { e.preventDefault(); W[side] += grow[e.key] * step; apply(true, side); }
+      if (e.key === "Home" || e.key === "Enter") { e.preventDefault(); W[side] = DEF[side]; apply(true, side); }
+    });
+  };
+  bindX($("#splitL"), "left"); bindX($("#splitR"), "right");
+  const sy = $("#splitY");
+  sy.setAttribute("aria-valuemin", YAML_MIN);
+  drag(sy, "y", (ev, r) => { W.yamlH = r.bottom - ev.clientY; }, "ed-resizing-y");
+  sy.addEventListener("dblclick", () => { W.yamlH = DEF.yamlH; apply(true, "y"); });
+  sy.addEventListener("keydown", e => {
+    const step = e.shiftKey ? 64 : 16;
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); W.yamlH += (e.key === "ArrowUp" ? 1 : -1) * step; apply(true, "y"); }
+    if (e.key === "Home" || e.key === "Enter") { e.preventDefault(); W.yamlH = DEF.yamlH; apply(true, "y"); }
+  });
+  const toggle = key => { W[key] = !W[key]; if (W[key] && key === "yaml") W.hist = false; if (W[key] && key === "hist") W.yaml = false; apply(true); };
+  window.setBottom = (key, on) => { if (W[key] !== on) toggle(key); };
+  // dwuklik na elemencie (graf, legenda, drzewo struktury) otwiera zamknięty panel właściwości, z Shiftem panel struktury;
+  // pierwsze kliknięcie już zaznaczyło element, więc tło (zaznacza ustawienia grafu) panelu nie otwiera
+  // z Shiftem otwiera panel struktury, rozwija sekcję z elementem i przewija drzewo do zaznaczonego wiersza
+  const openInsp = () => { if (!W.showRight) toggle("showRight"); };
+  const openTree = () => {
+    if (!W.showLeft) toggle("showLeft");
+    const key = SECTION_OF[S.sel.kind];
+    if (key && collapsed.has(key)) toggleSection(key); // zwinięta sekcja z tym elementem się rozwija
+    $('#tree .ed-row[aria-current="true"]')?.scrollIntoView({ block: "nearest" });
+  };
+  // „click” z detail 2, nie „dblclick”: pierwsze kliknięcie przebudowuje graf, więc dblclick by nie przyszedł;
+  // sprawdzenie po obsłudze kliknięcia (setTimeout), gdy zaznaczenie jest już ustawione
+  $("#preview").addEventListener("click", e => {
+    if (e.detail !== 2 || !e.target.closest(".fg-canvas, .fg-legend")) return;
+    setTimeout(() => { if (!S.draw && S.sel.kind !== "settings") (e.shiftKey ? openTree : openInsp)(); });
+  }, true);
+  $("#tree").addEventListener("click", e => { if (e.detail === 2 && e.target.closest(".ed-row")) openInsp(); }, true);
+  $("#vLeft").addEventListener("click", () => toggle("showLeft"));
+  $("#vRight").addEventListener("click", () => toggle("showRight"));
+  $("#vYaml").addEventListener("click", () => { toggle("yaml"); if (W.yaml) $("#yamlText").focus(); });
+  $("#yamlClose").addEventListener("click", () => { W.yaml = false; apply(true); $("#vYaml").focus(); });
+  window.addEventListener("resize", () => apply(false));
+  apply(false);
+  requestAnimationFrame(() => requestAnimationFrame(() => app.classList.add("ed-anim"))); // bez animacji przy starcie
+})();
+
+/* ---------- aplikacja (Tauri): menu, pliki z Findera, przeciąganie, zmiany na dysku, zamykanie ---------- */
+function typingNow() { const a = document.activeElement; return a && a.matches("input, textarea, select, .ed-sel-b, [contenteditable]"); }
+const appLog = line => invoke("log_line", { line: String(line) }).catch(() => {});
+if (TAURI) {
+  window.addEventListener("error", e => appLog(`błąd: ${e.message} (${(e.filename || "").split("/").pop()}:${e.lineno})`));
+  window.addEventListener("unhandledrejection", e => appLog(`błąd obietnicy: ${e.reason?.message || e.reason}`));
+}
+/* Autotest w aplikacji (FLOWGRAPH_SELFTEST=1): sprawdza to, co w silniku Safari może działać inaczej niż w Chrome. */
+async function selfTest() {
+  const out = [], ok = (name, cond, extra = "") => out.push(`${cond ? "OK  " : "BŁĄD"} ${name}${extra ? ": " + extra : ""}`);
+  const w = ms => new Promise(r => setTimeout(r, ms));
+  const all = q => document.querySelectorAll(q);
+  try {
+    await w(1500);
+    ok("silnik", true, (navigator.userAgent.match(/AppleWebKit\/[\d.]+/) || [navigator.userAgent])[0]);
+    ok("plik z Findera", !!S.path, S.path || "brak");
+    ok("graf narysowany", all("#preview .fg-node").length > 0, `${all("#preview .fg-node").length} węzłów, ${all("#preview .fg-lane").length} linii`);
+    ok("color-mix", CSS.supports("color", "color-mix(in srgb, red 50%, blue)"));
+    ok("fonty strony", document.fonts.check("13px 'IBM Plex Sans'"), document.fonts.status);
+    const stage = $("#preview .fg-stage");
+    const r = FlowGraph.stageToSVG(stage, { title: "test" });
+    ok("SVG", r.svg.length > 1000 && r.svg.includes("<text"), `${Math.round(r.svg.length / 1024)} KB, ${(r.svg.match(/<text/g) || []).length} tekstów`);
+    const img = new Image(); img.src = URL.createObjectURL(new Blob([r.svg], { type: "image/svg+xml" }));
+    await img.decode();
+    const cv = document.createElement("canvas"); cv.width = r.w; cv.height = r.h; cv.getContext("2d").drawImage(img, 0, 0);
+    let png = ""; try { png = cv.toDataURL("image/png"); } catch (e) { png = "TAINT " + e.message; }
+    ok("PNG z SVG (bez tainted canvas)", png.startsWith("data:image/png"), png.startsWith("data:") ? `${Math.round(png.length * 0.75 / 1024)} KB` : png);
+    let saved = null; FlowGraph.setSaver(async (blob, name) => { saved = { size: blob.size, name, type: blob.type }; return name; });
+    await FlowGraph.exportImage(stage, "png", { title: "test" });
+    ok("eksport PNG z fontami", saved && saved.size > 5000, JSON.stringify(saved));
+    saved = null; await FlowGraph.exportImage(stage, "svg", { title: "test" });
+    ok("eksport SVG", saved && saved.size > 2000, JSON.stringify(saved));
+    try {
+      const link = [...document.querySelectorAll('link[rel="stylesheet"]')].find(l => /fonts\.googleapis\.com/.test(l.href));
+      const resp = await fetch(link.href); const css = await resp.text();
+      const faces = await FlowGraph.fontFaces(new Set(["IBM Plex Sans|400", "IBM Plex Sans|600"]));
+      ok("fonty do osadzenia", faces.length > 1000, `css ${resp.status}, ${css.length} B, bloków ${(css.match(/@font-face/g) || []).length}, komentarze: ${[...new Set((css.match(/\/\*\s*[\w-]+\s*\*\//g) || []))].slice(0, 4).join(" ")}, osadzone ${faces.length} B`);
+    } catch (e) { ok("fonty do osadzenia", false, e.message); }
+    openMermaid(); await w(100);
+    ok("okno Mermaid (dialog)", $("#mmDlg").open && $("#mmText").value.includes("flowchart")); $("#mmDlg").close();
+    toggleHistory(true); await w(50); ok("panel historii", !$("#histPane").hidden, $("#histPane .ed-yaml-h b")?.textContent); toggleHistory(false);
+    $("#bExport").click(); await w(50); ok("menu eksportu", !$("#expMenu").hidden); toggleExport(false);
+    ok("tytuł okna", !!S.winTitle, S.winTitle);
+    ok("karty", document.querySelectorAll("#tabs .ed-tab").length === T.list.length && T.list.length >= 1, `${T.list.length} otwartych: ${T.list.map((_, i) => tabName(tabDoc(i))).join(", ")}`);
+  } catch (e) { ok("autotest", false, e.message); }
+  appLog("AUTOTEST\n" + out.join("\n"));
+}
+/* Zamknięcie okna albo zakończenie aplikacji (Cmd+Q, Dock) przy niezapisanych plikach: jedno pytanie naraz. */
+const dirtyDocs = () => T.list.map((_, i) => tabDoc(i)).filter(isDirtyDoc);
+let leaving = false;
+/* Zapisuje po kolei każdą kartę z niezapisanymi zmianami (nowy plik pyta o miejsce). Przerwany zapis zatrzymuje wszystko. */
+async function saveAllDirty() {
+  for (let i = 0; i < T.list.length; i++) {
+    if (!isDirtyDoc(tabDoc(i))) continue;
+    activate(i);
+    await save();
+    if (isDirtyDoc(tabDoc(i))) return false;
+  }
+  return true;
+}
+async function confirmLeave(kind) {
+  const dirty = dirtyDocs();
+  if (!dirty.length) return true;
+  if (leaving) return false; // drugie Cmd+Q, gdy pytanie jest już otwarte
+  leaving = true;
+  try {
+    const names = dirty.map(d => `<b>„${escHtml(tabName(d))}”</b>`).join(", ");
+    const r = await askDialog({
+      title: "Niezapisane zmiany",
+      text: `${dirty.length === 1 ? `${names} ma` : `Pliki ${names} mają`} niezapisane zmiany. Zapisać je? Bez zapisu zostaną w historii, ale nie na dysku.`,
+      buttons: [{ id: "save", label: dirty.length === 1 ? "Zapisz" : "Zapisz wszystkie", primary: true }, { id: "cancel", label: "Anuluj" },
+        { id: "leave", label: kind === "quit" ? "Zakończ bez zapisywania" : "Zamknij bez zapisywania", danger: true, lead: true }],
+    });
+    if (r === "save") return await saveAllDirty();
+    return r === "leave";
+  } finally { leaving = false; }
+}
+async function tauriInit() {
+  const { listen } = TAURI.event;
+  const MENU = {
+    new: () => $("#bNew").click(), open: openDialog, "import-mermaid": () => openMermaid("import"), save: () => save(), "save-as": () => save(true),
+    "close-tab": () => closeTab(T.i), "close-window": () => TAURI.window.getCurrentWindow().close(),
+    "tab-next": () => activate((T.i + 1) % T.list.length), "tab-prev": () => activate((T.i - 1 + T.list.length) % T.list.length),
+    undo: () => typingNow() ? document.execCommand("undo") : undo(),
+    redo: () => typingNow() ? document.execCommand("redo") : redo(),
+    history: () => toggleHistory(!S.histOpen), "view:left": () => $("#vLeft").click(), "view:yaml": () => $("#vYaml").click(), "view:right": () => $("#vRight").click(),
+    "zoom-in": () => page.zoomIn(), "zoom-out": () => page.zoomOut(), "zoom-100": () => page.zoomTo(1), "zoom-fit": () => page.zoomFit(),
+    quit: async () => { if (await confirmLeave("quit")) invoke("quit_app"); },
+    "recent-clear": () => { try { localStorage.removeItem(RECENT_KEY); } catch (e) { /* nic */ } addRecent(null); },
+  };
+  await listen("menu", e => {
+    const id = String(e.payload);
+    if (id.startsWith("export:")) return exportAs(id.slice(7));
+    if (id.startsWith("recent:")) { const p = recentList()[+id.slice(7)]; if (p) openPath(p); return; }
+    MENU[id]?.();
+  });
+  // pliki z Findera: zdarzenie mówi tylko „coś przyszło”, ścieżki odbieramy jednym wywołaniem, żeby niczego nie otworzyć dwa razy
+  const drain = async () => { const ps = await invoke("take_pending"); if (ps.length) openPaths(ps); };
+  await listen("open-files", drain);
+  await drain();
+  await TAURI.webview.getCurrentWebview().onDragDropEvent(e => {
+    if (e.payload.type === "drop" && e.payload.paths?.length) openPaths(e.payload.paths);
+  });
+  // obserwowany jest plik aktywnej karty; pozostałe sprawdzamy przy przełączeniu na nie
+  await listen("file-changed", e => { if (e.payload === S.path) syncFromDisk(); });
+  await TAURI.window.getCurrentWindow().onCloseRequested(async ev => {
+    if (!dirtyDocs().length) return;
+    ev.preventDefault(); // okno zamykamy sami, jeśli użytkownik potwierdzi (pytanie jest asynchroniczne)
+    if (await confirmLeave("close")) TAURI.window.getCurrentWindow().destroy();
+  });
+  addRecent(null); // menu „Otwórz ostatnie”
+  appLog(`start ${S.path || S.file || "(bez pliku)"}`);
+  if (await invoke("selftest_enabled")) selfTest();
+  if (S.path) { // przywrócona sesja: obserwujemy plik i porównujemy z dyskiem, żeby kropka „niezapisane” była prawdziwa
+    invoke("watch_file", { path: S.path }).catch(() => {});
+    syncFromDisk();
+  }
+}
+
+/* ---------- start ---------- */
+(function start() {
+  let sess = null;
+  try { sess = JSON.parse(localStorage.getItem(TABS_KEY) || "null"); } catch (e) { sess = null; }
+  if (!sess) { // starszy zapis: jeden dokument
+    try { const r = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if (r && isObj(r.spec)) sess = { i: 0, t: r.t, tabs: [{ spec: r.spec, file: r.file, docKey: r.docKey || (r.file ? "plik:" + r.file : "sesja"), path: r.path }] }; } catch (e) { sess = null; }
+    try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(HIST_KEY); } catch (e) { /* nic */ }
+  }
+  const tabs = (sess?.tabs || []).filter(t => t && isObj(t.spec));
+  tabs.forEach(t => {
+    const key = t.docKey || "sesja";
+    const d = makeDoc(t.spec, key, { file: t.file || null, path: TAURI && t.path ? t.path : null, label: "Przywrócona sesja" });
+    if (t.savedJson != null) d.savedJson = t.savedJson;
+    T.list.push(d);
+  });
+  T.i = Math.max(0, Math.min(sess?.i || 0, T.list.length - 1));
+  const initial = clone(INITIAL), fromFile = !!initial.__fromFile; delete initial.__fromFile;
+  if (fromFile) { // edytor zbudowany z plikiem z wiersza poleceń: ten plik w swojej karcie
+    const j = T.list.findIndex(d => d.docKey === "plik:wiersz-polecen");
+    if (j >= 0) T.list.splice(j, 1);
+    T.list.push(makeDoc(initial, "plik:wiersz-polecen", { label: "Otwarto plik" })); T.i = T.list.length - 1;
+  }
+  if (!T.list.length) T.list.push(makeDoc(initial, "sesja", { label: "Stan początkowy" }));
+  if (sess && tabs.length && !fromFile) S.msg = `Przywrócono ${tabs.length === 1 ? "ostatnią sesję" : `${tabs.length} otwarte karty`} z ${new Date(sess.t).toLocaleString("pl-PL")}.`;
+  unstash(T.i);
+  persist();
+  initThemeButton();
+  page = FlowGraph.mountPage($("#preview"), S.spec, { ...viewOpts(), noThemeSelect: true, noExport: true });
+  if (TAURI) tauriInit().catch(err => { S.msg = "Błąd integracji z aplikacją: " + err; renderStatus(); });
+  refresh();
+  // aplikacja: po pierwszym narysowaniu graf jest gotowy, więc ekran startowy może ustąpić głównemu oknu
+  // (setTimeout, nie requestAnimationFrame: ukryte okno WebKit wstrzymuje klatki animacji)
+  if (TAURI) setTimeout(() => invoke("app_ready").catch(() => {}), 0);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# Cotygodniowe aktualizacje zależności: akcje GitHuba (przypięte do SHA), npm, Cargo i obraz bazowy Dockera.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci # ci(deps): …, zgodnie z Conventional Commits
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    commit-message:
+      prefix: build # build(deps): …
+      include: scope
+    directories: ["/", "/app"]
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    commit-message:
+      prefix: build # build(deps): …
+      include: scope
+    directory: /app/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      cargo-minor:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: docker
+    commit-message:
+      prefix: build # build(deps): …
+      include: scope
+    directory: /
+    schedule:
+      interval: weekly

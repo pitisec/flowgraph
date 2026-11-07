@@ -1,0 +1,65 @@
+title: Proces rekrutacji
+subtitle: >-
+  Kandydaci trafiają z trzech źródeł. Po rozmowach decyzja zapada wspólnie,
+  a odrzucenie może nastąpić na każdym etapie.
+direction: TB
+
+groups:
+  - {id: zrodla, label: Źródła kandydatów, color: gray}
+  - {id: selekcja, label: Selekcja, color: blue}
+  - {id: rozmowy, label: Rozmowy, color: purple, parent: selekcja}
+  - {id: zatrudnienie, label: Zatrudnienie, color: green}
+
+nodes:
+  - {id: ogloszenie, label: Ogłoszenie, sub: portal pracy, group: zrodla}
+  - {id: polecenie, label: Polecenie pracownika, group: zrodla}
+  - {id: headhunter, label: Headhunter, group: zrodla, shape: ghost}
+  - {id: ats, label: System ATS, sub: baza kandydatów, shape: db}
+  - {id: screening, label: Screening CV, group: selekcja, meta: {czas: 2 dni}}
+  - {id: telefon, label: Rozmowa telefoniczna, group: selekcja}
+  - {id: techniczna, label: Rozmowa techniczna, group: rozmowy}
+  - {id: zespol, label: Spotkanie z zespołem, group: rozmowy}
+  - {id: zadanie, label: Zadanie domowe, group: rozmowy, shape: ghost}
+  - {id: decyzja, label: Decyzja, sub: hiring manager + HR, group: selekcja}
+  - {id: oferta, label: Oferta, group: zatrudnienie}
+  - {id: onboarding, label: Onboarding, group: zatrudnienie, shape: pill, items: [sprzęt, dostępy, mentor]}
+  - {id: odmowa, label: Informacja o odmowie, shape: pill}
+  - {id: pula, label: Pula talentów, sub: kontakt za 6 mies., shape: db}
+
+flows:
+  - id: kandydat
+    label: Ścieżka kandydata
+    color: blue
+    width: 3
+    description: Trzy źródła zbiegają się w systemie ATS. Rozmowa techniczna i spotkanie z zespołem odbywają się równolegle.
+    path:
+      - [ogloszenie, polecenie, headhunter]
+      - ats
+      - screening
+      - telefon
+      - [[techniczna, zadanie], zespol]
+      - decyzja
+      - {node: oferta, label: tak}
+      - {node: onboarding, label: podpisana umowa}
+
+  - id: odrzucenie
+    label: Odrzucenie
+    color: red
+    style: dashed
+    arrow: cross
+    description: Kandydat może odpaść po screeningu, po rozmowie telefonicznej albo po decyzji. Zawsze dostaje informację zwrotną.
+    path: [[screening, telefon, decyzja], odmowa]
+
+  - id: pula
+    label: Pula talentów
+    color: yellow
+    style: dotted
+    width: 2
+    arrow: diamond
+    description: Dobrzy kandydaci, dla których zabrakło miejsca, trafiają do puli i wracają przy następnej rekrutacji.
+    path: [odmowa, {node: pula, label: zgoda RODO}, ats]
+
+notes:
+  - title: Czas procesu
+    text: Średnio 3–4 tygodnie od zgłoszenia do oferty.
+    items: [screening do 2 dni, rozmowy w ciągu tygodnia, decyzja do 3 dni]

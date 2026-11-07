@@ -1,0 +1,77 @@
+title: Automatyka inteligentnego domu
+subtitle: >-
+  Czujniki wysyłają zdarzenia do centrali, która uruchamia automatyzacje.
+  Część poleceń przychodzi z telefonu i asystenta głosowego.
+direction: LR
+
+colors:
+  cieplo: {light: "#e67700", dark: "#ffc078"}
+  swiatlo: {light: "#f08c00", dark: "#ffe066"}
+  bezpieczenstwo: {light: "#c2255c", dark: "#f783ac"}
+
+groups:
+  - {id: czujniki, label: Czujniki, color: teal}
+  - {id: centrala, label: Centrala, color: purple}
+  - {id: urzadzenia, label: Urządzenia, color: blue}
+  - {id: salon, label: Salon, color: gray, parent: urzadzenia}
+
+nodes:
+  - {id: ruch, label: Czujnik ruchu, group: czujniki}
+  - {id: temp, label: Termometr, sub: co 5 min, group: czujniki}
+  - {id: drzwi, label: Kontaktron drzwi, group: czujniki}
+  - {id: telefon, label: Aplikacja w telefonie, shape: ghost}
+  - {id: glos, label: Asystent głosowy, shape: ghost}
+  - {id: hub, label: Hub Zigbee, sub: Home Assistant, group: centrala, meta: {protokół: Zigbee 3.0}}
+  - {id: reguly, label: Automatyzacje, group: centrala, items: [zmierzch, nikt w domu, noc]}
+  - {id: historia, label: Historia zdarzeń, group: centrala, shape: db}
+  - {id: lampy, label: Lampy, group: salon}
+  - {id: rolety, label: Rolety, group: salon}
+  - {id: grzejnik, label: Głowica grzejnika, group: urzadzenia}
+  - {id: alarm, label: Syrena alarmu, group: urzadzenia}
+  - {id: powiadomienie, label: Powiadomienie push, shape: pill}
+
+flows:
+  - id: oswietlenie
+    label: Oświetlenie
+    color: swiatlo
+    width: 3
+    description: Ruch po zmroku zapala lampy w salonie, a o zachodzie słońca zamykają się rolety.
+    path: [ruch, hub, {node: reguly, label: zmierzch}, [lampy, rolety]]
+
+  - id: ogrzewanie
+    label: Ogrzewanie
+    color: cieplo
+    width: 2.5
+    arrow: open
+    description: Termometr co pięć minut raportuje temperaturę. Głowica dostaje nową nastawę, gdy różnica przekracza pół stopnia.
+    path: [temp, hub, reguly, {node: grzejnik, label: "Δ > 0,5 °C"}]
+
+  - id: ochrona
+    label: Ochrona
+    color: bezpieczenstwo
+    width: 3
+    style: dashed
+    arrow: diamond
+    description: Otwarcie drzwi, gdy nikogo nie ma w domu, włącza syrenę i wysyła powiadomienie na telefon.
+    path: [drzwi, hub, {node: reguly, label: nikt w domu}, [alarm, powiadomienie]]
+
+  - id: sterowanie
+    label: Sterowanie ręczne
+    color: green
+    width: 2
+    arrow: circle
+    description: Polecenia z telefonu i asystenta głosowego idą przez hub bezpośrednio do urządzeń, z pominięciem automatyzacji.
+    path: [[telefon, glos], hub, [lampy, rolety, grzejnik]]
+
+  - id: log
+    label: Zapis zdarzeń
+    color: gray
+    style: dotted
+    width: 1.5
+    arrow: none
+    legend: false
+    path: [hub, historia]
+
+notes:
+  - title: Czytanie grafu
+    text: Każdy typ automatyzacji ma inny grot i kolor z palety dokumentu. Zapis zdarzeń jest ukryty w legendzie.
