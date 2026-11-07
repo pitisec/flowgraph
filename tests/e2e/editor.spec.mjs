@@ -96,6 +96,21 @@ test("Mermaid: eksport bieżącego grafu i wczytanie do nowej karty", async ({ p
   await expect(page.locator("#preview .fg-node")).toHaveCount(2);
 });
 
+test("Mermaid: HTML w etykietach nie trafia do strony jako kod (XSS)", async ({ page }) => {
+  // <b>, <i> itp. importer usuwa, a reszta musi zostać zwykłym tekstem, także przy sztuczkach typu <<b>img …>
+  const evil = 'flowchart LR\n  A["<<b>img src=x onerror=window.__xss=1>"] -->|"<<i>script>window.__xss=2<</i>/script>"| B["<svg onload=window.__xss=3>"]\n';
+  await page.evaluate(() => window.__xss = 0);
+  await page.locator("#bExport").click();
+  await page.getByRole("menuitem", { name: /Mermaid/ }).click();
+  await page.locator("#mmText").fill(evil);
+  await page.locator("#mmImport").click();
+  await expect(page.locator("#preview .fg-node")).toHaveCount(2);
+  await page.locator("#preview .fg-node").first().click(); // panel informacji też buduje HTML
+  await expect(page.locator("#preview .fg-node").first()).toContainText("<img src=x onerror=");
+  expect(await page.locator("#preview img, #preview script, #preview svg[onload]").count()).toBe(0);
+  expect(await page.evaluate(() => window.__xss)).toBe(0);
+});
+
 test("sesja: karty i niezapisane zmiany wracają po przeładowaniu", async ({ page }) => {
   await page.evaluate(a => openFile("a.yml", a), YAML_A);
   await page.locator("#in-title").fill("Po przeładowaniu");
