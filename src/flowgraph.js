@@ -557,7 +557,7 @@
             <button type="button" class="fg-tool fg-zoom-out" aria-label="Pomniejsz" title="Pomniejsz (Shift albo Ctrl/⌘ + kółko, gest szczypania)">−</button>
             <button type="button" class="fg-tool fg-zoom-val" title="Rozmiar 100%">100%</button>
             <button type="button" class="fg-tool fg-zoom-in" aria-label="Powiększ" title="Powiększ (Shift albo Ctrl/⌘ + kółko, gest szczypania)">+</button></div>
-          <button type="button" class="fg-tool fg-fit" aria-pressed="true" title="Pomniejsza graf, żeby zmieścił się na szerokość (najwyżej do 72%). Wyłączone: rozmiar 100%.">Dopasuj do szerokości</button>
+          <button type="button" class="fg-tool fg-fit" aria-pressed="true" title="Pomniejsza graf, żeby zmieścił się na szerokość (najwyżej do 72%, na telefonie do 40%). Wyłączone: rozmiar 100%.">Dopasuj do szerokości</button>
           <select class="fg-theme fg-export" aria-label="Pobierz graf jako obraz" title="Pobierz graf jako obraz (to, co widać, łącznie z wyróżnieniem przepływu)">
             <option value="">Pobierz obraz…</option><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option>
             <option value="png-t">PNG, przezroczyste tło</option><option value="svg-t">SVG, przezroczyste tło</option></select></div></div>
@@ -570,11 +570,13 @@
     const canvas = $(".fg-canvas"), sizer = $(".fg-sizer"), stage = $(".fg-stage");
     const st = { doc: null, size: { w: 0, h: 0 }, fit: true, zoom: null, focus: null, opts };
     const ZOOM_MIN = 0.2, ZOOM_MAX = 3;
+    // dopasowanie nie pomniejsza poniżej czytelnego rozmiaru; na wąskim ekranie (telefon) pozwala na więcej
+    const FIT_MIN = 0.72, FIT_MIN_NARROW = 0.4;
 
     function applyFit() {
       const avail = canvas.clientWidth;
       // zoom: ręczne powiększenie; bez niego „Dopasuj do szerokości” albo 100%
-      const s = st.opts.holdScale && st.scale ? st.scale : st.zoom ? st.zoom : st.fit && st.size.w > avail ? Math.max(0.72, avail / st.size.w) : 1;
+      const s = st.opts.holdScale && st.scale ? st.scale : st.zoom ? st.zoom : st.fit && st.size.w > avail ? Math.max(avail < 600 ? FIT_MIN_NARROW : FIT_MIN, avail / st.size.w) : 1;
       st.scale = s;
       $(".fg-zoom-val").textContent = Math.round(s * 100) + "%";
       $(".fg-zoom-out").disabled = s <= ZOOM_MIN + 1e-6; $(".fg-zoom-in").disabled = s >= ZOOM_MAX - 1e-6;

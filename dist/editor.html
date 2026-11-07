@@ -54,7 +54,8 @@ body.fg-body { margin: 0; background: var(--fg-bg); color: var(--fg-text); font-
 .fg-swatch.dashed { border-top-style: dashed; }
 .fg-swatch.dotted { border-top-style: dotted; }
 .fg-tool[aria-pressed="true"] { background: var(--fg-bg); }
-.fg-tools { display: flex; gap: 6px; align-items: center; }
+.fg-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.fg-fit { white-space: nowrap; }
 .fg-zoom { display: inline-flex; }
 .fg-zoom .fg-tool { border-radius: 0; padding: 4px 9px; justify-content: center; }
 .fg-zoom .fg-tool + .fg-tool { margin-left: -1px; }
@@ -129,6 +130,16 @@ body.fg-body { margin: 0; background: var(--fg-bg); color: var(--fg-text); font-
 .fg-empty { padding: 40px 20px; text-align: center; color: var(--fg-muted); }
 
 @media (prefers-reduced-motion: reduce) { .fg-node, .fg-lane, .fg-elabel { transition: none; } }
+
+/* Telefon: mniej marginesu, mniejszy tytuł, przyciski wygodne do dotyku */
+@media (max-width: 600px) {
+  body.fg-body { padding-block: 16px 32px; }
+  .fg-head h1 { font-size: 22px; }
+  .fg-bar { gap: 10px; }
+}
+@media (pointer: coarse) {
+  .fg-legend button, .fg-tool, .fg-theme { min-height: 34px; }
+}
 
 </style>
 <style>
@@ -473,6 +484,30 @@ kbd { font-family: var(--fg-mono); font-size: 11px; border: 1px solid var(--fg-l
   .ed-side { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--fg-line); }
   .ed-insp { border-left: 0; border-top: 1px solid var(--fg-line); }
 }
+/* Telefon: tylko podgląd. Graf na cały ekran, bez paneli i narzędzi edycji; informacja na dole.
+   Warunek ten sam co PHONE w skrypcie. */
+.ed-phone-note { display: none; }
+@media (max-width: 700px), (max-height: 500px) and (hover: none) {
+  .ed-app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; height: 100dvh; overflow: hidden; }
+  .ed-main { grid-column: 1; grid-row: 2; }
+  .ed-side, .ed-insp, .ed-split, .ed-toolbar, .ed-btabs, #histPane, #yamlPane, #status, #bSave, .ed-iconbar, .ed-sep, .ed-splitbtn:has(#bNew) { display: none !important; }
+  .ed-top { gap: 6px 8px; padding: 6px 10px; }
+  .ed-brand span { display: none; }
+  .ed-tabs { order: 9; flex: 1 1 calc(100% - 60px); margin: 0; padding: 0; } /* karty i motyw w drugim wierszu */
+  #bTheme { order: 10; }
+  .ed-preview { padding: 12px 10px 14px; }
+  .ed-preview .fg-node { cursor: pointer; touch-action: auto; }
+  .ed-phone-note { display: block; flex: 1; padding: 3px 0; }
+}
+/* telefon w poziomie: mało wysokości, więc jeden wiersz paska i sam tytuł grafu */
+@media (max-height: 500px) and (hover: none) {
+  .ed-tabs { order: 0; flex: 1 1 160px; }
+  .ed-preview { padding-top: 8px; }
+  .ed-preview .fg-head p { display: none; }
+  .ed-preview .fg-head h1 { font-size: 18px; }
+  .ed-preview .fg-page { gap: 10px; }
+  .ed-status { padding-block: 2px; }
+}
 </style>
 </head>
 <body>
@@ -530,7 +565,7 @@ kbd { font-family: var(--fg-mono); font-size: 11px; border: 1px solid var(--fg-l
   <aside class="ed-insp" id="insp" aria-label="Właściwości"></aside>
   <div class="ed-split ed-split-l" id="splitL" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu struktury" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
   <div class="ed-split ed-split-r" id="splitR" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu właściwości" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
-  <footer class="ed-status"><div class="ed-status-info" id="status" role="status"></div></footer>
+  <footer class="ed-status"><div class="ed-status-info" id="status" role="status"></div><div class="ed-phone-note">Na telefonie tylko podgląd. Edycja działa na większym ekranie.</div></footer>
   <dialog class="ed-dlg" id="mmDlg" aria-labelledby="mmTitle">
     <div class="ed-dlg-h"><h2 id="mmTitle">Mermaid</h2><button class="ed-btn icon" type="button" id="mmClose" aria-label="Zamknij">✕</button></div>
     <div class="ed-dlg-b">
@@ -4942,7 +4977,7 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
             <button type="button" class="fg-tool fg-zoom-out" aria-label="Pomniejsz" title="Pomniejsz (Shift albo Ctrl/⌘ + kółko, gest szczypania)">−</button>
             <button type="button" class="fg-tool fg-zoom-val" title="Rozmiar 100%">100%</button>
             <button type="button" class="fg-tool fg-zoom-in" aria-label="Powiększ" title="Powiększ (Shift albo Ctrl/⌘ + kółko, gest szczypania)">+</button></div>
-          <button type="button" class="fg-tool fg-fit" aria-pressed="true" title="Pomniejsza graf, żeby zmieścił się na szerokość (najwyżej do 72%). Wyłączone: rozmiar 100%.">Dopasuj do szerokości</button>
+          <button type="button" class="fg-tool fg-fit" aria-pressed="true" title="Pomniejsza graf, żeby zmieścił się na szerokość (najwyżej do 72%, na telefonie do 40%). Wyłączone: rozmiar 100%.">Dopasuj do szerokości</button>
           <select class="fg-theme fg-export" aria-label="Pobierz graf jako obraz" title="Pobierz graf jako obraz (to, co widać, łącznie z wyróżnieniem przepływu)">
             <option value="">Pobierz obraz…</option><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option>
             <option value="png-t">PNG, przezroczyste tło</option><option value="svg-t">SVG, przezroczyste tło</option></select></div></div>
@@ -4955,11 +4990,13 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
     const canvas = $(".fg-canvas"), sizer = $(".fg-sizer"), stage = $(".fg-stage");
     const st = { doc: null, size: { w: 0, h: 0 }, fit: true, zoom: null, focus: null, opts };
     const ZOOM_MIN = 0.2, ZOOM_MAX = 3;
+    // dopasowanie nie pomniejsza poniżej czytelnego rozmiaru; na wąskim ekranie (telefon) pozwala na więcej
+    const FIT_MIN = 0.72, FIT_MIN_NARROW = 0.4;
 
     function applyFit() {
       const avail = canvas.clientWidth;
       // zoom: ręczne powiększenie; bez niego „Dopasuj do szerokości” albo 100%
-      const s = st.opts.holdScale && st.scale ? st.scale : st.zoom ? st.zoom : st.fit && st.size.w > avail ? Math.max(0.72, avail / st.size.w) : 1;
+      const s = st.opts.holdScale && st.scale ? st.scale : st.zoom ? st.zoom : st.fit && st.size.w > avail ? Math.max(avail < 600 ? FIT_MIN_NARROW : FIT_MIN, avail / st.size.w) : 1;
       st.scale = s;
       $(".fg-zoom-val").textContent = Math.round(s * 100) + "%";
       $(".fg-zoom-out").disabled = s <= ZOOM_MIN + 1e-6; $(".fg-zoom-in").disabled = s >= ZOOM_MAX - 1e-6;
@@ -8749,8 +8786,10 @@ function arrangeAll() {
 // Graf przerysowuje się na żywo (linie, grupy, reszta układu), a do historii trafia tylko pozycja po puszczeniu.
 // Na czas przeciągania skala i początek sceny są zamrożone (holdScale, anchor), więc pozycja = start + ruch kursora / skala,
 // a reszta grafu stoi w miejscu. Dopiero wyjście węzła poza lewą/górną krawędź poszerza scenę.
+// telefon: tylko podgląd (ten sam warunek co w CSS), palec przewija graf zamiast przesuwać węzły
+const PHONE = matchMedia("(max-width: 700px), (max-height: 500px) and (hover: none)");
 $("#preview").addEventListener("pointerdown", e => {
-  if (S.draw || e.button !== 0) return;
+  if (S.draw || e.button !== 0 || PHONE.matches) return;
   const el0 = e.target.closest(".fg-node"); if (!el0) return;
   const id = el0.dataset.id;
   if (!findNode(S.spec, id)) return; // węzłów niezdefiniowanych nie da się przypiąć

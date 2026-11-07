@@ -44,7 +44,8 @@ body.fg-body { margin: 0; background: var(--fg-bg); color: var(--fg-text); font-
 .fg-swatch.dashed { border-top-style: dashed; }
 .fg-swatch.dotted { border-top-style: dotted; }
 .fg-tool[aria-pressed="true"] { background: var(--fg-bg); }
-.fg-tools { display: flex; gap: 6px; align-items: center; }
+.fg-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.fg-fit { white-space: nowrap; }
 .fg-zoom { display: inline-flex; }
 .fg-zoom .fg-tool { border-radius: 0; padding: 4px 9px; justify-content: center; }
 .fg-zoom .fg-tool + .fg-tool { margin-left: -1px; }
@@ -119,3 +120,13 @@ body.fg-body { margin: 0; background: var(--fg-bg); color: var(--fg-text); font-
 .fg-empty { padding: 40px 20px; text-align: center; color: var(--fg-muted); }
 
 @media (prefers-reduced-motion: reduce) { .fg-node, .fg-lane, .fg-elabel { transition: none; } }
+
+/* Telefon: mniej marginesu, mniejszy tytuł, przyciski wygodne do dotyku */
+@media (max-width: 600px) {
+  body.fg-body { padding-block: 16px 32px; }
+  .fg-head h1 { font-size: 22px; }
+  .fg-bar { gap: 10px; }
+}
+@media (pointer: coarse) {
+  .fg-legend button, .fg-tool, .fg-theme { min-height: 34px; }
+}

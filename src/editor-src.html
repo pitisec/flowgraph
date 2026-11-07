@@ -352,6 +352,30 @@ kbd { font-family: var(--fg-mono); font-size: 11px; border: 1px solid var(--fg-l
   .ed-side { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--fg-line); }
   .ed-insp { border-left: 0; border-top: 1px solid var(--fg-line); }
 }
+/* Telefon: tylko podgląd. Graf na cały ekran, bez paneli i narzędzi edycji; informacja na dole.
+   Warunek ten sam co PHONE w skrypcie. */
+.ed-phone-note { display: none; }
+@media (max-width: 700px), (max-height: 500px) and (hover: none) {
+  .ed-app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; height: 100dvh; overflow: hidden; }
+  .ed-main { grid-column: 1; grid-row: 2; }
+  .ed-side, .ed-insp, .ed-split, .ed-toolbar, .ed-btabs, #histPane, #yamlPane, #status, #bSave, .ed-iconbar, .ed-sep, .ed-splitbtn:has(#bNew) { display: none !important; }
+  .ed-top { gap: 6px 8px; padding: 6px 10px; }
+  .ed-brand span { display: none; }
+  .ed-tabs { order: 9; flex: 1 1 calc(100% - 60px); margin: 0; padding: 0; } /* karty i motyw w drugim wierszu */
+  #bTheme { order: 10; }
+  .ed-preview { padding: 12px 10px 14px; }
+  .ed-preview .fg-node { cursor: pointer; touch-action: auto; }
+  .ed-phone-note { display: block; flex: 1; padding: 3px 0; }
+}
+/* telefon w poziomie: mało wysokości, więc jeden wiersz paska i sam tytuł grafu */
+@media (max-height: 500px) and (hover: none) {
+  .ed-tabs { order: 0; flex: 1 1 160px; }
+  .ed-preview { padding-top: 8px; }
+  .ed-preview .fg-head p { display: none; }
+  .ed-preview .fg-head h1 { font-size: 18px; }
+  .ed-preview .fg-page { gap: 10px; }
+  .ed-status { padding-block: 2px; }
+}
 </style>
 </head>
 <body>
@@ -409,7 +433,7 @@ kbd { font-family: var(--fg-mono); font-size: 11px; border: 1px solid var(--fg-l
   <aside class="ed-insp" id="insp" aria-label="Właściwości"></aside>
   <div class="ed-split ed-split-l" id="splitL" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu struktury" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
   <div class="ed-split ed-split-r" id="splitR" role="separator" aria-orientation="vertical" aria-label="Szerokość panelu właściwości" tabindex="0" title="Przeciągnij, żeby zmienić szerokość. Dwuklik przywraca domyślną."></div>
-  <footer class="ed-status"><div class="ed-status-info" id="status" role="status"></div></footer>
+  <footer class="ed-status"><div class="ed-status-info" id="status" role="status"></div><div class="ed-phone-note">Na telefonie tylko podgląd. Edycja działa na większym ekranie.</div></footer>
   <dialog class="ed-dlg" id="mmDlg" aria-labelledby="mmTitle">
     <div class="ed-dlg-h"><h2 id="mmTitle">Mermaid</h2><button class="ed-btn icon" type="button" id="mmClose" aria-label="Zamknij">✕</button></div>
     <div class="ed-dlg-b">
@@ -1318,8 +1342,10 @@ function arrangeAll() {
 // Graf przerysowuje się na żywo (linie, grupy, reszta układu), a do historii trafia tylko pozycja po puszczeniu.
 // Na czas przeciągania skala i początek sceny są zamrożone (holdScale, anchor), więc pozycja = start + ruch kursora / skala,
 // a reszta grafu stoi w miejscu. Dopiero wyjście węzła poza lewą/górną krawędź poszerza scenę.
+// telefon: tylko podgląd (ten sam warunek co w CSS), palec przewija graf zamiast przesuwać węzły
+const PHONE = matchMedia("(max-width: 700px), (max-height: 500px) and (hover: none)");
 $("#preview").addEventListener("pointerdown", e => {
-  if (S.draw || e.button !== 0) return;
+  if (S.draw || e.button !== 0 || PHONE.matches) return;
   const el0 = e.target.closest(".fg-node"); if (!el0) return;
   const id = el0.dataset.id;
   if (!findNode(S.spec, id)) return; // węzłów niezdefiniowanych nie da się przypiąć

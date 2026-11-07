@@ -80,6 +80,7 @@ Przycisk „⟲ Rozmieść automatycznie” na pasku działa na zaznaczoną grup
 - **Panele:** struktura po lewej i właściwości po prawej chowają się przyciskami przy krawędziach (⌘1 / ⌘3 w aplikacji); szerokość zmienia się przeciągnięciem krawędzi. YAML i historia zmian to zakładki pod grafem.
 - **Pola wyboru:** kierunek grafu i grupy, styl linii i grot wybiera się ikonami. Listy (kształt węzła z podglądem, grupa, węzły w krokach przepływu) mają na długich listach pole szukania i obsługują klawiaturę: strzałki, Enter, Esc i pierwszą literę.
 - **Rozgałęzienia** w ustawieniach przepływu są pokazane jako gałęzie A, B, C… z krokami i informacją, w którym kroku się łączą.
+- **Telefon:** na wąskim ekranie (do 700 px, albo telefon w poziomie) edytor jest tylko podglądem: graf na cały ekran, karty, otwieranie plików i eksport. Panele i narzędzia edycji są ukryte, a dotyk przewija graf zamiast przesuwać węzły.
 
 ## Karty
 
@@ -105,7 +106,7 @@ Zakładka z ikoną zegara pod grafem (na prawo od zakładki „YAML”; w aplika
 
 ## Powiększenie
 
-Nad grafem (w edytorze i w wygenerowanych stronach) są przyciski **−**, **procent** i **+**, od 20% do 300%. Kliknięcie procentu ustawia 100%. Ctrl/⌘ + kółko myszy, Shift + kółko (na gładziku Shift + dwa palce w górę i w dół) albo szczypanie na gładziku powiększa wokół kursora, więc punkt pod kursorem zostaje w miejscu. „Dopasuj do szerokości” wraca do automatycznego rozmiaru. W edytorze działają też skróty ⌘+ / ⌘− / ⌘0 (dopasuj), a w aplikacji te same pozycje są w menu Widok. Przeciąganie węzłów działa przy każdym powiększeniu. Pole grafu zajmuje wolne miejsce do dołu okna (w edytorze do dołu panelu) i dopasowuje się do jego wielkości. Graf przewija się w środku pola, więc powiększenie zmienia tylko zawartość, a nie rozmiar pola. Notatki są pod polem.
+Nad grafem (w edytorze i w wygenerowanych stronach) są przyciski **−**, **procent** i **+**, od 20% do 300%. Kliknięcie procentu ustawia 100%. Ctrl/⌘ + kółko myszy, Shift + kółko (na gładziku Shift + dwa palce w górę i w dół) albo szczypanie na gładziku powiększa wokół kursora, więc punkt pod kursorem zostaje w miejscu. „Dopasuj do szerokości” wraca do automatycznego rozmiaru: graf szerszy od pola pomniejsza się najwyżej do 72%, a na wąskim ekranie (telefon) do 40%. W edytorze działają też skróty ⌘+ / ⌘− / ⌘0 (dopasuj), a w aplikacji te same pozycje są w menu Widok. Przeciąganie węzłów działa przy każdym powiększeniu. Pole grafu zajmuje wolne miejsce do dołu okna (w edytorze do dołu panelu) i dopasowuje się do jego wielkości. Graf przewija się w środku pola, więc powiększenie zmienia tylko zawartość, a nie rozmiar pola. Notatki są pod polem.
 
 ## Eksport obrazu
 
