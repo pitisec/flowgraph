@@ -50,9 +50,15 @@ build(deps): dagre 0.8.6
 
 Format sprawdzają:
 - hook `commit-msg` (`.githooks/`, włączany przez `npm ci` albo `npm install`);
-- CI w każdym pull requeście.
+- CI w każdym pull requeście: opisy commitów i tytuł PR.
+
+Pull requesty scalamy przez **squash**, więc tytuł PR staje się opisem commita na `main` i też musi mieć ten format.
 
 Hook w wyjątkowej sytuacji pominiesz przez `git commit --no-verify`.
+
+## Bezpieczeństwo
+
+Podatności zgłaszaj prywatnie, nie w issue: [SECURITY.md](SECURITY.md).
 
 ## Wydanie
 

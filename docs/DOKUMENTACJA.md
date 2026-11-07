@@ -186,7 +186,7 @@ Testy jednostkowe (`tests/unit/`) sprawdzają silnik, konwerter Mermaid (eksport
 - `examples/`: przykładowe grafy (źródła `.yml`)
 - `Dockerfile`, `docker/nginx.conf`, `.dockerignore`: obraz z edytorem (nginx); `deploy/kubernetes.yaml`: Deployment i Service
 - `scripts/`: `release.mjs` (`npm run release`), `commit-check.mjs` (opisy commitów, hook z `.githooks/`), `lib/conventional.mjs`
-- `CHANGELOG.md`: zmiany w kolejnych wersjach; `CONTRIBUTING.md`: format commitów i wydania
+- `CHANGELOG.md`: zmiany w kolejnych wersjach; `CONTRIBUTING.md`: format commitów i wydania; `SECURITY.md`: zgłaszanie podatności
 - `tests/`: testy jednostkowe i end-to-end; `.github/workflows/`: CI, wydania, GitHub Pages i obraz Dockera
 - `docs/`: ta dokumentacja i zrzuty ekranu do README (`npm run screenshots` odświeża je skryptem `docs/screenshots/make.mjs`)
 - `THIRD_PARTY_NOTICES.md`: licencje bibliotek zewnętrznych
