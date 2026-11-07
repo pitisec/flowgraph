@@ -36,6 +36,12 @@ jobs:
           RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
         run: node scripts/commit-check.mjs --range "$RANGE"
 
+      # PR scalamy przez squash, więc opisem commita na main zostaje tytuł PR
+      - name: Tytuł pull requestu
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title" && node scripts/commit-check.mjs --file "$RUNNER_TEMP/title"
+
   web:
     name: Silnik, edytor, CLI
     runs-on: ubuntu-24.04
