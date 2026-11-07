@@ -163,7 +163,7 @@ npm test                        # jednostkowe (node --test) i end-to-end (Playwr
 npm run build                   # przebudowa dist/editor.html i dist/examples/*.html po zmianach w silniku
 ```
 
-Testy jednostkowe (`tests/unit/`) sprawdzają silnik, konwerter Mermaid (eksport i import wszystkich przykładów bez strat), wiersz poleceń oraz wyliczanie wersji i CHANGELOG z commitów (Conventional Commits). Testy end-to-end (`tests/e2e/`) otwierają przykłady i edytor w Chromium: karty, edycję z historią, przeciąganie węzłów, YAML, Mermaid i przywracanie sesji. To samo uruchamia GitHub Actions przy każdym pushu. Wydania opisuje `app/BUDOWANIE.md`.
+Testy jednostkowe (`tests/unit/`) sprawdzają silnik, konwerter Mermaid (eksport i import wszystkich przykładów bez strat), wiersz poleceń oraz wyliczanie wersji i CHANGELOG z commitów (Conventional Commits). Testy end-to-end (`tests/e2e/`) otwierają przykłady i edytor w Chromium: karty, edycję z historią, przeciąganie węzłów, YAML, Mermaid i przywracanie sesji, a z podstawionym API Tauri także zachowanie aplikacji wobec zmian pliku na dysku. To samo uruchamia GitHub Actions przy każdym pushu. Wydania opisuje `app/BUDOWANIE.md`.
 
 ## Pliki
 

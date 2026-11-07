@@ -9474,8 +9474,10 @@ async function openDialog() {
   const sel = await TAURI.dialog.open({ multiple: true, directory: false, filters: [{ name: "Graf (YAML, JSON, Mermaid)", extensions: ["yml", "yaml", "json", "mmd", "mermaid"] }] });
   if (sel) openPaths([].concat(sel));
 }
-/* Treść pliku aktywnej karty na dysku: przy pierwszym odczycie tylko zapamiętujemy (kropka „niezapisane” = różnica z dyskiem),
-   później zmiana na dysku przeładowuje kartę, a przy niezapisanych zmianach najpierw pyta. */
+/* Treść pliku aktywnej karty na dysku. Pierwszy odczyt (karta z przywróconej sesji): karta bez niezapisanych zmian
+   dostaje treść z dysku, bo plik mógł się zmienić przy zamkniętej aplikacji (np. git pull); karta z niezapisanymi
+   zmianami zostaje, a kropka „niezapisane” odnosi się odtąd do dysku. Później zmiana na dysku przeładowuje kartę,
+   a przy niezapisanych zmianach najpierw pyta. */
 async function syncFromDisk() {
   const key = S.docKey, path = S.path;
   let text; try { text = await invoke("read_text", { path }); }
@@ -9484,8 +9486,13 @@ async function syncFromDisk() {
   if (text === S.diskText) return; // nasz własny zapis albo brak zmian
   if (S.diskText == null) {
     S.diskText = text;
-    try { S.savedJson = JSON.stringify(prep(jsyaml.load(text))); } catch (e) { /* zostaje poprzedni punkt odniesienia */ }
-    renderSaveState(); renderStatus(); return;
+    let json = null;
+    try { json = JSON.stringify(prep(jsyaml.load(text))); } catch (e) { /* niepoprawny plik: zostaje poprzedni punkt odniesienia */ }
+    if (json == null || json === S.savedJson) { renderSaveState(); return; }
+    if (isDirtyDoc(S)) { S.savedJson = json; renderSaveState(); renderStatus(); return; }
+    loadText(S.file, text, null, S.path, "Plik zmieniony na dysku");
+    appLog(`wczytano nowszą wersję z dysku: ${S.path} (tytuł: ${S.spec.title})`);
+    return;
   }
   S.diskText = text;
   if (isDirtyDoc(S) && await askDialog({
@@ -9510,7 +9517,8 @@ $("#bOpen").addEventListener("change", e => {
   const files = [...e.target.files]; if (!files.length) return;
   (async () => { for (const f of files) openFile(f.name, await f.text(), null); e.target.value = ""; })();
 });
-function markSaved() { S.savedJson = JSON.stringify(S.spec); renderSaveState(); }
+// persist(): punkt odniesienia trafia też do sesji, inaczej po restarcie karta wyglądałaby na niezapisaną
+function markSaved() { S.savedJson = JSON.stringify(S.spec); persist(); renderSaveState(); }
 function renderSaveState() {
   renderTabs();
   const b = $("#bSave"), dirty = S.savedJson !== JSON.stringify(S.spec);
@@ -9545,7 +9553,7 @@ async function saveTauri(as) {
   }
   S.file = pathBase(path);
   if (path !== S.path) setPath(path, text);
-  persist(); markSaved();
+  markSaved();
   S.msg = `Zapisano ${S.file} o ${new Date().toLocaleTimeString("pl-PL")}.`;
   renderStatus();
 }

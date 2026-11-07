@@ -121,6 +121,16 @@ test("sesja: karty i niezapisane zmiany wracają po przeładowaniu", async ({ pa
   await expect(page.locator("#preview .fg-head h1")).toHaveText("Po przeładowaniu");
 });
 
+test("sesja: plik bez zmian po przeładowaniu nie ma znacznika niezapisanych zmian", async ({ page }) => {
+  await page.evaluate(a => openFile("a.yml", a), YAML_A);
+  await expect(activeTab(page)).not.toHaveClass(/dirty/);
+  await page.reload();
+  await expect(activeTab(page)).toContainText("a.yml");
+  await expect(activeTab(page)).not.toHaveClass(/dirty/);
+  await expect(page.locator("#bSave")).not.toHaveClass(/dirty/);
+  expect(await page.title()).not.toMatch(/^●/);
+});
+
 test("struktura: sekcje oddzielone linią, zwijane, stan zapamiętany", async ({ page }) => {
   const sec = key => page.locator(`#tree .ed-sec[data-key="${key}"]`);
   for (const key of ["flows", "nodes", "groups", "notes"]) {
