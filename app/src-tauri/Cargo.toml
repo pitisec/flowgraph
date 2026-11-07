@@ -1,6 +1,6 @@
 [package]
 name = "flowgraph"
-version = "0.10.5"
+version = "0.10.6"
 license = "MIT"
 description = "Edytor diagramów przepływu"
 edition = "2021"
