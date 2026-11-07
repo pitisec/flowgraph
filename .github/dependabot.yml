@@ -41,3 +41,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # nginx: nieparzysty drugi numer to gałąź mainline; zostajemy na stable (parzysty), poprawki 1.30.x przychodzą dalej
+      - dependency-name: nginxinc/nginx-unprivileged
+        versions: [">= 1.31, < 1.32", ">= 1.33, < 1.34", ">= 1.35, < 1.36", ">= 1.37, < 1.38", ">= 1.39, < 1.40"]
