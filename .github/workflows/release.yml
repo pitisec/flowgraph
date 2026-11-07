@@ -197,7 +197,13 @@ jobs:
           TAG: ${{ github.ref_name }}
           SIGNED: ${{ needs.build.outputs.signed }}
           PUBLIC: ${{ github.event.repository.visibility == 'public' }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: |
+          # obraz i Pages powstają po publikacji wydania (docker.yml, pages.yml); ghcr.io wymaga małych liter
+          owner=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/$owner/flowgraph"
+          PAGES_URL="https://$owner.github.io/${REPO}/"
           # lista zmian z CHANGELOG.md (uzupełnia go npm run release)
           node --input-type=module -e '
             import fs from "node:fs";
@@ -209,6 +215,8 @@ jobs:
           {
             [ -f changes.md ] && cat changes.md
             echo "## Instalacja"
+            echo
+            echo "### macOS"
             echo
             echo "Pobierz \`FlowGraph_${TAG}_universal.dmg\`, otwórz i przeciągnij FlowGraph do folderu Aplikacje. Działa na Macach z Apple Silicon i Intel."
             if [ "$SIGNED" != "true" ]; then
@@ -223,6 +231,20 @@ jobs:
             else
               echo "Sumy SHA-256 są w \`SHA256SUMS.txt\`."
             fi
+            echo
+            echo "### W przeglądarce"
+            echo
+            echo "Edytor tej wersji działa bez instalacji: ${PAGES_URL}"
+            echo
+            echo "### Docker i Kubernetes"
+            echo
+            echo "Obraz z edytorem (nginx bez roota, port 8080) dla \`linux/amd64\` i \`linux/arm64\`:"
+            echo
+            echo "\`\`\`sh"
+            echo "docker run --rm -p 8080:8080 ${IMAGE}:${TAG}    # http://localhost:8080"
+            echo "\`\`\`"
+            echo
+            echo "Tagi: \`${TAG}\`, \`${TAG%.*}\`, \`latest\`. Manifest dla Kubernetes: [\`deploy/kubernetes.yaml\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${TAG}/deploy/kubernetes.yaml)."
           } > notes.md
           gh release create "$TAG" dist-release/* \
             --repo "$GITHUB_REPOSITORY" \
