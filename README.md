@@ -89,13 +89,33 @@ Ten sam format opisuje model C4: osoby, systemy zewnętrzne, granice systemu i k
 
 Edytor jest też natywną aplikacją (Tauri) dla Apple Silicon i Intel. Ma okna „Otwórz” i „Zapisz” systemu, menu macOS ze skrótami i listę ostatnio otwartych plików. Otwiera pliki z Findera, a gdy plik zmieni się na dysku, na przykład po `git pull`, przeładowuje graf.
 
+### Docker i Kubernetes
+
+Edytor i przykłady są też obrazem kontenera `ghcr.io/pitisec/flowgraph` dla `linux/amd64` i `linux/arm64`. Obraz to nginx bez uprawnień roota (port 8080), działa z systemem plików tylko do odczytu i ma sondę `/healthz`. Edytor pracuje w całości w przeglądarce: pliki otwiera i zapisuje lokalnie, a serwer niczego nie przechowuje. Nowa wersja obrazu powstaje przy każdym wydaniu, z tagami `X.Y.Z`, `X.Y` i `latest`. Gotowy manifest dla Kubernetes zawiera Deployment z dwiema replikami, Service i zakomentowany Ingress.
+
 ## Szybki start
 
 **Online:** [edytor w przeglądarce](https://pitisec.github.io/flowgraph/), bez instalacji. Przykładowy graf: [obsługa zamówienia](https://pitisec.github.io/flowgraph/examples/zamowienie.html).
 
-**Docker i Kubernetes:** `docker run --rm -p 8080:8080 ghcr.io/pitisec/flowgraph`, potem http://localhost:8080. Manifest dla Kubernetes: [`deploy/kubernetes.yaml`](deploy/kubernetes.yaml).
+**Aplikacja na macOS:** pobierz `FlowGraph_X.Y.Z_universal.dmg` z zakładki [Releases](../../releases) i przeciągnij FlowGraph do folderu Aplikacje.
 
-**Aplikacja:** pobierz `FlowGraph_X.Y.Z_universal.dmg` z zakładki [Releases](../../releases) i przeciągnij FlowGraph do folderu Aplikacje.
+> [!NOTE]
+> Aplikacja nie jest podpisana certyfikatem Apple, więc przy pierwszym uruchomieniu macOS ją zablokuje. Otwórz wtedy Ustawienia systemowe → Prywatność i ochrona → **Otwórz mimo to** (w macOS 14 i starszych: prawy klik na aplikacji → **Otwórz**). Wystarczy zrobić to raz.
+
+**Docker:**
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/pitisec/flowgraph      # http://localhost:8080
+```
+
+**Kubernetes:**
+
+```sh
+kubectl apply -f https://raw.githubusercontent.com/pitisec/flowgraph/main/deploy/kubernetes.yaml
+kubectl port-forward svc/flowgraph 8080:80                  # http://localhost:8080
+```
+
+Manifest [`deploy/kubernetes.yaml`](deploy/kubernetes.yaml) wskazuje konkretną wersję obrazu. Do wystawienia na zewnątrz odkomentuj w nim Ingress i wpisz swoją domenę. Szczegóły: [dokumentacja](docs/DOKUMENTACJA.md#docker-i-kubernetes).
 
 **Przeglądarka i wiersz poleceń** (wymaga [`uv`](https://docs.astral.sh/uv/)):
 
