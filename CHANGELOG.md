@@ -2,6 +2,12 @@
 
 Wszystkie istotne zmiany w FlowGraph. Plik uzupełnia `npm run release` na podstawie commitów w formacie [Conventional Commits](https://www.conventionalcommits.org/pl/v1.0.0/).
 
+## [0.10.5](https://github.com/pitisec/flowgraph/compare/0.10.4...0.10.5) (2026-11-07)
+
+### Dokumentacja
+
+- Docker i Kubernetes w README, uwaga o niepodpisanej aplikacji ([49132c7](https://github.com/pitisec/flowgraph/commit/49132c7d2172efcd32a3a9eb074ced283e129f03))
+
 ## 0.10.4 (2026-11-07)
 
 Pierwsze publiczne wydanie.

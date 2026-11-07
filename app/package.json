@@ -1,7 +1,7 @@
 {
   "name": "flowgraph-app",
   "private": true,
-  "version": "0.10.4",
+  "version": "0.10.5",
   "license": "MIT",
   "scripts": {
     "web": "cd .. && ./flowgraph.py editor -o app/dist/index.html && cp app/src/splash.html app/dist/splash.html",

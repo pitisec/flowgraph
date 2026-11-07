@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: flowgraph
-          image: ghcr.io/pitisec/flowgraph:0.10.4
+          image: ghcr.io/pitisec/flowgraph:0.10.5
           ports:
             - name: http
               containerPort: 8080
