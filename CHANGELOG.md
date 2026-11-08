@@ -2,6 +2,10 @@
 
 Wszystkie istotne zmiany w FlowGraph. Plik uzupełnia `npm run release` na podstawie commitów w formacie [Conventional Commits](https://www.conventionalcommits.org/pl/v1.0.0/).
 
+## [0.10.7](https://github.com/pitisec/flowgraph/compare/0.10.5...0.10.7) (2026-11-08)
+
+Zmiany techniczne bez wpływu na działanie (zależności, budowanie, testy).
+
 ## [0.10.6](https://github.com/pitisec/flowgraph/compare/0.10.5...0.10.6) (2026-11-07)
 
 ### Poprawki
