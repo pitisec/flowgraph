@@ -18,7 +18,7 @@
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
-    "@playwright/test": "1.65.0"
+    "@playwright/test": "1.65.1"
   },
   "engines": {
     "node": ">=22"
