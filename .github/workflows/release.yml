@@ -68,7 +68,7 @@ jobs:
           echo "enabled=$HAS_CERT" >> "$GITHUB_OUTPUT"
           if [ "$HAS_CERT" != "true" ]; then echo "::warning::Brak sekretów Apple: .dmg będzie niepodpisany."; fi
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           cache-dependency-glob: flowgraph.py # zależności są w nagłówku skryptu (PEP 723)
 
